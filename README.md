@@ -29,6 +29,8 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
+После запуска через Docker Compose API доступен на `http://localhost:8001`.
+
 ## Структура
 
 ```text
@@ -67,4 +69,3 @@ data/
 - логи: `*.log`
 - backup/черновики: `*_backup.py`, `*_before_api.py`
 - секреты: `.env`, API/HF/OpenRouter tokens
-
