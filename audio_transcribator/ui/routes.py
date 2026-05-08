@@ -28,15 +28,16 @@ def ui_root(ui_token: str | None = Cookie(default=None)):
 def login_page(request: Request, ui_token: str | None = Cookie(default=None)):
     if ui_token == settings.api_token:
         return RedirectResponse(url="/ui/upload", status_code=status.HTTP_303_SEE_OTHER)
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
 @router.post("/login")
 def login(request: Request, username: str = Form(...), password: str = Form(...)):
     if not verify_credentials(username, password):
         return templates.TemplateResponse(
+            request,
             "login.html",
-            {"request": request, "error": "Invalid username or password"},
+            {"error": "Invalid username or password"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -55,7 +56,7 @@ def logout():
 @router.get("/upload", response_class=HTMLResponse)
 def upload_page(request: Request, ui_token: str | None = Cookie(default=None)):
     require_ui_auth(ui_token)
-    return templates.TemplateResponse("upload.html", {"request": request})
+    return templates.TemplateResponse(request, "upload.html")
 
 
 @router.post("/upload")
@@ -75,8 +76,9 @@ def result_page(request: Request, job_id: str, ui_token: str | None = Cookie(def
 
     downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
     return templates.TemplateResponse(
+        request,
         "result.html",
-        {"request": request, "result": result, "downloads": downloads},
+        {"result": result, "downloads": downloads},
     )
 
 
