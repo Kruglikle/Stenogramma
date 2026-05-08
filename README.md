@@ -19,7 +19,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
-uvicorn app:app --reload
+uvicorn app:app --reload --port 8001
 ```
 
 ## Docker Compose

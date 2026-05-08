@@ -15,5 +15,6 @@ ENV BASE_DIR=/app
 ENV UPLOAD_DIR=/app/data/uploads
 ENV RESULTS_DIR=/app/data/api_results
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8001
 
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]
