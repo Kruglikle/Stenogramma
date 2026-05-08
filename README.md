@@ -1,22 +1,33 @@
 # Audio Transcribator MVP
 
-FastAPI-сервис для загрузки аудио/видео, извлечения аудио через ffmpeg, транскрибации через faster-whisper и генерации summary через LLM.
+FastAPI-сервис для обработки аудио- и видеофайлов: загрузка файла, извлечение аудио через `ffmpeg`, транскрибация через `faster-whisper`, генерация summary через LLM и скачивание результатов.
 
-## Запуск
+## Возможности
+
+- `POST /login` — авторизация и получение access token.
+- `POST /process` — загрузка аудио/видео и запуск фоновой обработки.
+- `GET /result/{job_id}` — получение результата обработки по ID задачи.
+- `GET /download/{job_id}/{filename}` — скачивание отдельных файлов результата.
+- Token-based авторизация через `Authorization: Bearer <token>`.
+- Поддержка аудио и видеоформатов, совместимых с `ffmpeg`.
+- Опциональная diarization через `pyannote`, если включен `ENABLE_DIARIZATION=true`.
+
+## Запуск локально
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
 uvicorn app:app --reload
 ```
 
-API сохраняет прежние endpoint'ы:
+## Docker Compose
 
-- `POST /login`
-- `POST /process`
-- `GET /result/{job_id}`
-- `GET /download/{job_id}/{filename}`
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
 
 ## Структура
 
@@ -40,14 +51,16 @@ data/
   api_results/           # результаты задач, не коммитить
 ```
 
-## Docker Compose
+## Настройки
 
-```powershell
-Copy-Item .env.example .env
-docker compose up --build
-```
+Основные переменные окружения лежат в `.env.example`:
 
-## Файлы, которые не нужно коммитить
+- `API_TOKEN`, `API_USERNAME`, `API_PASSWORD`
+- `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `SUMMARY_MODEL`
+- `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`
+- `ENABLE_DIARIZATION`, `HF_TOKEN`
+
+## Что не коммитить
 
 - входные медиафайлы: `*.mp3`, `*.mp4`, `*.wav`
 - результаты обработки: `transcript.txt`, `summary.txt`, `diarization.txt`, `speaker_transcript.txt`, `work_audio.wav`
