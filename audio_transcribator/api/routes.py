@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from audio_transcribator.auth import check_auth, verify_credentials
+from audio_transcribator.config import settings
 from audio_transcribator.models import LoginRequest
 from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file
 from audio_transcribator.utils.files import ALLOWED_DOWNLOADS
