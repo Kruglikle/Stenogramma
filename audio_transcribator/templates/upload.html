@@ -8,12 +8,24 @@
     <h1>Upload file</h1>
   </div>
   <form class="form upload-form" method="post" action="/ui/upload" enctype="multipart/form-data">
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
     <label>
       Audio or video file
       <input name="file" type="file" accept="audio/*,video/*" required>
+    </label>
+    <label>
+      Transcription model
+      <select name="transcription_model" required>
+        {% for model in transcription_models %}
+          <option value="{{ model.id }}" {% if model.id == selected_transcription_model %}selected{% endif %}>
+            {{ model.label }}
+          </option>
+        {% endfor %}
+      </select>
     </label>
     <button type="submit">Start processing</button>
   </form>
 </section>
 {% endblock %}
-

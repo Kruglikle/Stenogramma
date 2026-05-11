@@ -5,6 +5,11 @@ from fastapi.templating import Jinja2Templates
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
 from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file
+from audio_transcribator.services.transcription_models import (
+    DEFAULT_TRANSCRIPTION_MODEL_ID,
+    TranscriptionModelError,
+    list_transcription_models,
+)
 from audio_transcribator.utils.files import ALLOWED_DOWNLOADS
 
 
@@ -56,13 +61,38 @@ def logout():
 @router.get("/upload", response_class=HTMLResponse)
 def upload_page(request: Request, ui_token: str | None = Cookie(default=None)):
     require_ui_auth(ui_token)
-    return templates.TemplateResponse(request, "upload.html")
+    return templates.TemplateResponse(
+        request,
+        "upload.html",
+        {
+            "transcription_models": list_transcription_models(),
+            "selected_transcription_model": DEFAULT_TRANSCRIPTION_MODEL_ID,
+            "error": None,
+        },
+    )
 
 
 @router.post("/upload")
-def upload_file(file: UploadFile = File(...), ui_token: str | None = Cookie(default=None)):
+def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
+    ui_token: str | None = Cookie(default=None),
+):
     require_ui_auth(ui_token)
-    result = start_uploaded_file(file)
+    try:
+        result = start_uploaded_file(file, transcription_model_id=transcription_model)
+    except TranscriptionModelError as exc:
+        return templates.TemplateResponse(
+            request,
+            "upload.html",
+            {
+                "transcription_models": list_transcription_models(),
+                "selected_transcription_model": transcription_model,
+                "error": str(exc),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
     return RedirectResponse(url=f"/ui/result/{result['job_id']}", status_code=status.HTTP_303_SEE_OTHER)
 
 

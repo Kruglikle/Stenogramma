@@ -96,7 +96,8 @@ label {
   font-size: 14px;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 42px;
   padding: 9px 11px;

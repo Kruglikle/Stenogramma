@@ -8,6 +8,10 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from audio_transcribator.config import settings
+from audio_transcribator.services.transcription_models import (
+    DEFAULT_TRANSCRIPTION_MODEL_ID,
+    resolve_transcription_model,
+)
 from audio_transcribator.utils.files import tail
 
 
@@ -20,11 +24,20 @@ STATUS_LABELS = {
 }
 
 
-def save_job_metadata(job_dir: Path, input_file: Path, status: str) -> None:
+def save_job_metadata(
+    job_dir: Path,
+    input_file: Path,
+    status: str,
+    transcription_model_id: str | None = None,
+) -> None:
+    existing_metadata = load_job_metadata(job_dir)
     metadata = {
         "job_id": job_dir.name,
         "status": status,
         "input_file": str(input_file),
+        "transcription_model": transcription_model_id
+        or existing_metadata.get("transcription_model")
+        or DEFAULT_TRANSCRIPTION_MODEL_ID,
         "files": sorted(p.name for p in job_dir.iterdir() if p.is_file()),
     }
     with open(job_dir / "metadata.json", "w", encoding="utf-8") as f:
@@ -101,7 +114,8 @@ def get_job_file(job_id: str, filename: str) -> Path:
     return file_path
 
 
-def start_uploaded_file(file: UploadFile) -> dict:
+def start_uploaded_file(file: UploadFile, transcription_model_id: str | None = None) -> dict:
+    transcription_model = resolve_transcription_model(transcription_model_id)
     job_id = str(uuid4())
     job_dir = settings.results_dir / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
@@ -112,10 +126,17 @@ def start_uploaded_file(file: UploadFile) -> dict:
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    save_job_metadata(job_dir, input_path, status="started")
+    save_job_metadata(job_dir, input_path, status="started", transcription_model_id=transcription_model["id"])
 
     log_path = job_dir / "run.log"
-    command = [sys.executable, "process_audio_fast.py", str(input_path), str(job_dir)]
+    command = [
+        sys.executable,
+        "process_audio_fast.py",
+        str(input_path),
+        str(job_dir),
+        "--transcription-model",
+        transcription_model["id"],
+    ]
 
     with open(log_path, "w", encoding="utf-8") as log_file:
         subprocess.Popen(
@@ -128,5 +149,6 @@ def start_uploaded_file(file: UploadFile) -> dict:
     return {
         "status": "started",
         "job_id": job_id,
+        "transcription_model": transcription_model["id"],
         "message": "File uploaded and processing started",
     }

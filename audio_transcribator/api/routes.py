@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from psycopg.errors import UniqueViolation
 
@@ -7,6 +7,11 @@ from audio_transcribator.config import settings
 from audio_transcribator.db import create_user
 from audio_transcribator.models import AddUserRequest, LoginRequest
 from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file
+from audio_transcribator.services.transcription_models import (
+    DEFAULT_TRANSCRIPTION_MODEL_ID,
+    TranscriptionModelError,
+    list_transcription_models,
+)
 from audio_transcribator.utils.files import ALLOWED_DOWNLOADS
 
 
@@ -43,11 +48,22 @@ def root():
 @router.post("/process")
 async def process_file(
     file: UploadFile = File(...),
+    transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
     authorization: str | None = Header(default=None),
 ):
     check_auth(authorization)
 
-    return start_uploaded_file(file)
+    try:
+        return start_uploaded_file(file, transcription_model_id=transcription_model)
+    except TranscriptionModelError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/transcription-models")
+def get_transcription_models(authorization: str | None = Header(default=None)):
+    check_auth(authorization)
+
+    return {"models": list_transcription_models(), "default": DEFAULT_TRANSCRIPTION_MODEL_ID}
 
 
 @router.get("/result/{job_id}")

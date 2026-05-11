@@ -7,11 +7,13 @@ FastAPI-сервис для обработки аудио- и видеофайл
 - `POST /login` — авторизация и получение access token.
 - `POST /add-user` — добавление нового пользователя администратором.
 - `POST /process` — загрузка аудио/видео и запуск фоновой обработки.
+- `GET /transcription-models` — список доступных моделей транскрибации.
 - `GET /result/{job_id}` — получение результата обработки по ID задачи.
 - `GET /download/{job_id}/{filename}` — скачивание отдельных файлов результата.
 - Token-based авторизация через `Authorization: Bearer <token>`.
 - Пользователи хранятся в PostgreSQL, пароль сохраняется в виде hash.
 - Поддержка аудио и видеоформатов, совместимых с `ffmpeg`.
+- Выбор модели транскрибации: локальная `faster-whisper` или OpenRouter STT модели из `audio_transcribator/transcription_models.json`.
 - Опциональная diarization через `pyannote`, если включен `ENABLE_DIARIZATION=true`.
 
 ## Запуск локально
@@ -20,14 +22,22 @@ FastAPI-сервис для обработки аудио- и видеофайл
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item .env.example .env
+New-Item -ItemType File .env
 uvicorn app:app --reload --port 8001
 ```
+
+Если приложение запускается нативно из `.venv`, а PostgreSQL нужен в Docker, можно поднять только контейнер базы данных:
+
+```powershell
+docker compose up db
+```
+
+Это удобно для локальной разработки: база работает в контейнере, а FastAPI-приложение запускается как обычный локальный процесс через `uvicorn app:app --reload --port 8001`.
 
 ## Docker Compose
 
 ```powershell
-Copy-Item .env.example .env
+New-Item -ItemType File .env
 docker compose up --build
 ```
 
@@ -44,6 +54,15 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Bearer change-me-add-user-token" } `
   -ContentType "application/json" `
   -Body '{"username":"user1","password":"strong-password"}'
+```
+
+То же самое через `curl`:
+
+```bash
+curl -X POST http://localhost:8001/add-user \
+  -H "Authorization: Bearer change-me-add-user-token" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user1","password":"strong-password"}'
 ```
 
 ## Структура
@@ -72,12 +91,13 @@ data/
 
 ## Настройки
 
-Основные переменные окружения лежат в `.env.example`:
+Основные переменные окружения задаются в `.env`:
 
 - `API_TOKEN`, `API_USERNAME`, `API_PASSWORD`, `ADD_USER_ADMIN_TOKEN`
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`
 - `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `SUMMARY_MODEL`
 - `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`
+- `TRANSCRIPTION_MODELS_FILE`
 - `ENABLE_DIARIZATION`, `HF_TOKEN`
 
 ## Что не коммитить

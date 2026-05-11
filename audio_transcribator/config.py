@@ -2,6 +2,25 @@ import os
 from pathlib import Path
 
 
+def load_env_file(env_file: Path) -> None:
+    if not env_file.exists():
+        return
+
+    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+load_env_file(Path.cwd() / ".env")
+
+
 class Settings:
     def __init__(self) -> None:
         self.base_dir = Path(os.getenv("BASE_DIR", Path.cwd())).resolve()
@@ -30,6 +49,9 @@ class Settings:
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
         self.openrouter_base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
         self.summary_model = os.getenv("SUMMARY_MODEL", "qwen/qwen3.5-35b-a3b")
+        self.transcription_models_file = Path(
+            os.getenv("TRANSCRIPTION_MODELS_FILE", self.base_dir / "audio_transcribator" / "transcription_models.json")
+        ).resolve()
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")

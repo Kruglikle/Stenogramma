@@ -1,0 +1,25 @@
+[
+  {
+    "id": "local:faster-whisper",
+    "label": "Local faster-whisper",
+    "provider": "local"
+  },
+  {
+    "id": "openai/whisper-large-v3",
+    "label": "OpenRouter: Whisper Large V3",
+    "provider": "openrouter",
+    "model": "openai/whisper-large-v3"
+  },
+  {
+    "id": "openai/gpt-4o-transcribe",
+    "label": "OpenRouter: GPT-4o Transcribe",
+    "provider": "openrouter",
+    "model": "openai/gpt-4o-transcribe"
+  },
+  {
+    "id": "openai/whisper-large-v3-turbo",
+    "label": "OpenRouter: openai/whisper-large-v3-turbo",
+    "provider": "openrouter",
+    "model": "openai/whisper-large-v3-turbo"
+  }
+]
