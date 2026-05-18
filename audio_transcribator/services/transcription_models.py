@@ -54,7 +54,7 @@ def list_transcription_models() -> list[dict[str, Any]]:
     for item in load_transcription_models():
         model = dict(item)
         if model["id"] == DEFAULT_TRANSCRIPTION_MODEL_ID:
-            model["label"] = f"{model.get('label', 'Local faster-whisper')} ({settings.whisper_model})"
+            model["label"] = f"{model.get('label', 'Локальная faster-whisper')} ({settings.whisper_model})"
         models.append(model)
     return models
 

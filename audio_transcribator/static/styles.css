@@ -1,15 +1,19 @@
 :root {
   color-scheme: light;
-  --bg: #f4f6f8;
-  --panel: #ffffff;
-  --text: #18202a;
-  --muted: #687384;
-  --border: #d9dee7;
-  --accent: #1f6feb;
-  --accent-dark: #1959bd;
-  --success: #0f7b3f;
-  --warning: #9a6700;
-  --danger: #b42318;
+  --bg: #dff3e7;
+  --bg-deep: #c9ead7;
+  --panel: #fbfff9;
+  --panel-soft: #eef9f1;
+  --text: #183428;
+  --muted: #5d7669;
+  --border: #b7dbc3;
+  --accent: #4f9f6f;
+  --accent-dark: #347e55;
+  --accent-soft: #d6efd9;
+  --success: #207247;
+  --warning: #876715;
+  --danger: #b94a3f;
+  --shadow: 0 16px 34px rgba(43, 101, 63, 0.12);
 }
 
 * {
@@ -19,9 +23,12 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    linear-gradient(180deg, #f4fbef 0%, var(--bg) 44%, var(--bg-deep) 100%);
   color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 .topbar {
@@ -29,21 +36,23 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 24px;
-  background: var(--panel);
+  padding: 18px 28px;
+  background: rgba(236, 249, 239, 0.94);
   border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
 }
 
 .brand {
   color: var(--text);
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
   text-decoration: none;
 }
 
 .page {
   width: min(1040px, calc(100% - 32px));
-  margin: 24px auto;
+  margin: 28px auto;
 }
 
 .auth-page {
@@ -57,16 +66,27 @@ body {
 
 .panel {
   margin-bottom: 16px;
-  padding: 20px;
+  padding: 24px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 22px;
+  box-shadow: var(--shadow);
 }
 
 .auth-panel h1,
 .panel h1,
 .panel h2 {
   margin: 0 0 16px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.panel h1 {
+  font-size: 30px;
+}
+
+.panel h2 {
+  font-size: 22px;
 }
 
 .section-header {
@@ -74,6 +94,10 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.compact-header {
+  margin-bottom: 12px;
 }
 
 .actions {
@@ -91,21 +115,30 @@ body {
 
 label {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   color: var(--muted);
   font-size: 14px;
+  font-weight: 650;
 }
 
 input,
 select {
   width: 100%;
-  min-height: 42px;
-  padding: 9px 11px;
+  min-height: 46px;
+  padding: 11px 15px;
   color: var(--text);
-  background: #ffffff;
+  background: #fbfffb;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 18px;
+  font: inherit;
   font-size: 15px;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(92, 168, 120, 0.18);
+  outline: none;
 }
 
 button,
@@ -113,16 +146,18 @@ button,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  padding: 9px 14px;
+  min-height: 44px;
+  padding: 11px 20px;
   color: #ffffff;
-  background: var(--accent);
+  background: linear-gradient(180deg, #64b984 0%, var(--accent) 100%);
   border: 0;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 700;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 750;
   text-decoration: none;
   cursor: pointer;
+  box-shadow: 0 8px 18px rgba(52, 126, 85, 0.18);
 }
 
 button:hover,
@@ -132,21 +167,23 @@ button:hover,
 
 .ghost-button {
   color: var(--text);
-  background: transparent;
+  background: #f7fff6;
   border: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .ghost-button:hover {
-  background: #eef2f7;
+  background: var(--accent-soft);
 }
 
 .secondary {
   color: var(--text);
-  background: #eef2f7;
+  background: var(--accent-soft);
+  box-shadow: none;
 }
 
 .secondary:hover {
-  background: #e2e8f0;
+  background: #cde8d6;
 }
 
 .muted {
@@ -167,15 +204,17 @@ button:hover,
 }
 
 .downloads a {
-  padding: 9px 12px;
-  color: var(--accent);
+  padding: 10px 15px;
+  color: var(--accent-dark);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 999px;
   text-decoration: none;
+  background: #f8fff6;
+  font-weight: 700;
 }
 
 .downloads a:hover {
-  background: #eef5ff;
+  background: var(--accent-soft);
 }
 
 .downloads .primary-download {
@@ -192,26 +231,26 @@ button:hover,
   display: inline-flex;
   align-items: center;
   min-height: 32px;
-  padding: 6px 10px;
+  padding: 8px 13px;
   color: var(--text);
-  background: #eef2f7;
+  background: var(--accent-soft);
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .status-completed {
   color: var(--success);
-  background: #eaf7ef;
-  border-color: #bfe5cc;
+  background: #e2f3e8;
+  border-color: #b9dfc4;
 }
 
 .status-running,
 .status-started {
   color: var(--warning);
-  background: #fff7e6;
-  border-color: #f1d28a;
+  background: #fbf4dd;
+  border-color: #ead899;
 }
 
 .status-completed_without_summary {
@@ -222,8 +261,8 @@ button:hover,
 
 .status-failed {
   color: var(--danger);
-  background: #fff0ee;
-  border-color: #f2b8b5;
+  background: #fff0ed;
+  border-color: #efbdb7;
 }
 
 .status-note {
@@ -234,11 +273,40 @@ pre {
   overflow: auto;
   max-height: 520px;
   margin: 0;
-  padding: 14px;
-  background: #f7f9fc;
+  padding: 16px;
+  background: var(--panel-soft);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 18px;
   white-space: pre-wrap;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.diagnostics-panel {
+  background: #f7fff6;
+}
+
+.log-details {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel-soft);
+}
+
+.log-details summary {
+  padding: 13px 16px;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.log-output {
+  max-height: 360px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 18px 18px;
+  background: #edf7ee;
+  font-size: 13px;
 }
 
 @media (max-width: 640px) {

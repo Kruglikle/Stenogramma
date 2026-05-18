@@ -3,19 +3,20 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Audio Transcribator{% endblock %}</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <title>{% block title %}Стенограмма{% endblock %}</title>
+    <link rel="stylesheet" href="/static/styles.css?v=green-2">
+    {% block head_extra %}{% endblock %}
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/ui/upload">Audio Transcribator</a>
+      <a class="brand" href="/ui/upload">Стенограмма</a>
       <form method="post" action="/ui/logout">
-        <button class="ghost-button" type="submit">Logout</button>
+        <button class="ghost-button" type="submit">Выйти</button>
       </form>
     </header>
     <main class="page">
       {% block content %}{% endblock %}
     </main>
+    {% block scripts %}{% endblock %}
   </body>
 </html>
-

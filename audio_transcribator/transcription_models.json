@@ -1,7 +1,7 @@
 [
   {
     "id": "local:faster-whisper",
-    "label": "Local faster-whisper",
+    "label": "Локальная faster-whisper",
     "provider": "local"
   },
   {
@@ -18,7 +18,7 @@
   },
   {
     "id": "openai/whisper-large-v3-turbo",
-    "label": "OpenRouter: openai/whisper-large-v3-turbo",
+    "label": "OpenRouter: Whisper Large V3 Turbo",
     "provider": "openrouter",
     "model": "openai/whisper-large-v3-turbo"
   }

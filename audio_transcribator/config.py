@@ -55,6 +55,7 @@ class Settings:
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+        self.transcription_language = os.getenv("TRANSCRIPTION_LANGUAGE", "ru").strip() or None
 
         self.hf_token = os.getenv("HF_TOKEN")
         self.enable_diarization = os.getenv("ENABLE_DIARIZATION", "false").lower() in {"1", "true", "yes"}

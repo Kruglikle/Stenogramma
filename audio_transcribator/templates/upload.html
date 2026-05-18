@@ -1,22 +1,26 @@
 {% extends "base.html" %}
 
-{% block title %}Upload | Audio Transcribator{% endblock %}
+{% block title %}Стенограмма | Стенограмма{% endblock %}
 
 {% block content %}
 <section class="panel">
   <div class="section-header">
-    <h1>Upload file</h1>
+    <h1>Стенограмма</h1>
   </div>
   <form class="form upload-form" method="post" action="/ui/upload" enctype="multipart/form-data">
     {% if error %}
       <p class="error">{{ error }}</p>
     {% endif %}
     <label>
-      Audio or video file
-      <input name="file" type="file" accept="audio/*,video/*" required>
+      Аудио или видеофайл
+      <input name="file" type="file" accept="audio/*,video/*">
     </label>
     <label>
-      Transcription model
+      Ссылка на видео или аудио
+      <input name="source_url" type="url" placeholder="https://example.com/video">
+    </label>
+    <label>
+      Модель распознавания
       <select name="transcription_model" required>
         {% for model in transcription_models %}
           <option value="{{ model.id }}" {% if model.id == selected_transcription_model %}selected{% endif %}>
@@ -25,7 +29,7 @@
         {% endfor %}
       </select>
     </label>
-    <button type="submit">Start processing</button>
+    <button type="submit">Запустить обработку</button>
   </form>
 </section>
 {% endblock %}

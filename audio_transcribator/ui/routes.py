@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
-from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file
+from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
     TranscriptionModelError,
@@ -42,7 +42,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"error": "Invalid username or password"},
+            {"error": "Неверный логин или пароль"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -75,14 +75,21 @@ def upload_page(request: Request, ui_token: str | None = Cookie(default=None)):
 @router.post("/upload")
 def upload_file(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(default=None),
+    source_url: str = Form(default=""),
     transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
     ui_token: str | None = Cookie(default=None),
 ):
     require_ui_auth(ui_token)
     try:
-        result = start_uploaded_file(file, transcription_model_id=transcription_model)
-    except TranscriptionModelError as exc:
+        clean_source_url = source_url.strip()
+        if file and file.filename:
+            result = start_uploaded_file(file, transcription_model_id=transcription_model)
+        elif clean_source_url:
+            result = start_url(clean_source_url, transcription_model_id=transcription_model)
+        else:
+            raise ValueError("Загрузите файл или вставьте ссылку на медиа")
+    except (TranscriptionModelError, ValueError) as exc:
         return templates.TemplateResponse(
             request,
             "upload.html",

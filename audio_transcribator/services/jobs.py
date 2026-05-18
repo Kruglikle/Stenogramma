@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import UploadFile
@@ -16,17 +17,17 @@ from audio_transcribator.utils.files import tail
 
 
 STATUS_LABELS = {
-    "started": "Started",
-    "running": "Processing",
-    "completed": "Completed",
-    "completed_without_summary": "Completed without summary",
-    "failed": "Failed",
+    "started": "Запущено",
+    "running": "В обработке",
+    "completed": "Готово",
+    "completed_without_summary": "Готово без резюме",
+    "failed": "Ошибка",
 }
 
 
 def save_job_metadata(
     job_dir: Path,
-    input_file: Path,
+    input_file: Path | str,
     status: str,
     transcription_model_id: str | None = None,
 ) -> None:
@@ -151,4 +152,44 @@ def start_uploaded_file(file: UploadFile, transcription_model_id: str | None = N
         "job_id": job_id,
         "transcription_model": transcription_model["id"],
         "message": "File uploaded and processing started",
+    }
+
+
+def start_url(source_url: str, transcription_model_id: str | None = None) -> dict:
+    parsed_url = urlparse(source_url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise ValueError("Only http/https media links are supported")
+
+    transcription_model = resolve_transcription_model(transcription_model_id)
+    job_id = str(uuid4())
+    job_dir = settings.results_dir / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    save_job_metadata(job_dir, source_url, status="started", transcription_model_id=transcription_model["id"])
+
+    log_path = job_dir / "run.log"
+    command = [
+        sys.executable,
+        "process_audio_fast.py",
+        "remote-media",
+        str(job_dir),
+        "--source-url",
+        source_url,
+        "--transcription-model",
+        transcription_model["id"],
+    ]
+
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        subprocess.Popen(
+            command,
+            cwd=str(settings.base_dir),
+            stdout=log_file,
+            stderr=log_file,
+        )
+
+    return {
+        "status": "started",
+        "job_id": job_id,
+        "transcription_model": transcription_model["id"],
+        "message": "Media URL queued and processing started",
     }

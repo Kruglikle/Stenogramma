@@ -5,8 +5,8 @@ from psycopg.errors import UniqueViolation
 from audio_transcribator.auth import check_add_user_auth, check_auth, verify_credentials
 from audio_transcribator.config import settings
 from audio_transcribator.db import create_user
-from audio_transcribator.models import AddUserRequest, LoginRequest
-from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file
+from audio_transcribator.models import AddUserRequest, LoginRequest, ProcessUrlRequest
+from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
     TranscriptionModelError,
@@ -56,6 +56,19 @@ async def process_file(
     try:
         return start_uploaded_file(file, transcription_model_id=transcription_model)
     except TranscriptionModelError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/process-url")
+def process_url(
+    data: ProcessUrlRequest,
+    authorization: str | None = Header(default=None),
+):
+    check_auth(authorization)
+
+    try:
+        return start_url(data.source_url, transcription_model_id=data.transcription_model)
+    except (TranscriptionModelError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
