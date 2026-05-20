@@ -1,5 +1,6 @@
 import base64
 import json
+import time
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -11,6 +12,8 @@ from audio_transcribator.services.transcription_models import resolve_transcript
 
 
 LOCAL_MODEL_REQUIRED_FILES = {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"}
+OPENROUTER_RETRY_STATUS_CODES = {502, 503, 504}
+OPENROUTER_MAX_ATTEMPTS = 3
 
 
 def normalize_transcript_text(text: str) -> str:
@@ -115,12 +118,7 @@ def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str) -> str:
         method="POST",
     )
 
-    try:
-        with urlopen(request, timeout=300) as response:
-            response_data = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenRouter transcription failed: {exc.code} {error_body}") from exc
+    response_data = call_openrouter_transcription(request, model)
 
     text = response_data.get("text")
     if not isinstance(text, str):
@@ -139,3 +137,26 @@ def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str) -> str:
         )
 
     return text
+
+
+def call_openrouter_transcription(request: Request, model: str) -> dict:
+    last_error: RuntimeError | None = None
+    for attempt in range(1, OPENROUTER_MAX_ATTEMPTS + 1):
+        try:
+            with urlopen(request, timeout=300) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace")
+            last_error = RuntimeError(f"OpenRouter transcription failed: {exc.code} {error_body}")
+            if exc.code not in OPENROUTER_RETRY_STATUS_CODES or attempt == OPENROUTER_MAX_ATTEMPTS:
+                raise last_error from exc
+
+            delay_seconds = attempt * 5
+            print(
+                f"OpenRouter returned {exc.code} for {model}; retrying "
+                f"{attempt + 1}/{OPENROUTER_MAX_ATTEMPTS} in {delay_seconds}s...",
+                flush=True,
+            )
+            time.sleep(delay_seconds)
+
+    raise last_error or RuntimeError("OpenRouter transcription failed")
