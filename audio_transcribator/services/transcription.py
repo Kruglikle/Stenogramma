@@ -1,5 +1,6 @@
 import base64
 import json
+import subprocess
 import time
 from pathlib import Path
 from urllib.error import HTTPError
@@ -95,6 +96,89 @@ def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str) -> str:
     if not settings.openrouter_api_key:
         raise RuntimeError("OPENROUTER_API_KEY is required for OpenRouter transcription models")
 
+    if audio_file.stat().st_size > settings.openrouter_transcription_max_bytes:
+        return transcribe_openrouter_chunked(audio_file, job_dir, model)
+
+    response_data = transcribe_openrouter_file(audio_file, model)
+    text = extract_openrouter_text(response_data)
+
+    transcript_path = job_dir / "transcript.txt"
+    transcript_path.write_text(text, encoding="utf-8")
+    print(text, flush=True)
+
+    usage = response_data.get("usage")
+    if usage:
+        (job_dir / "transcription_usage.json").write_text(
+            json.dumps(usage, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    return text
+
+
+def transcribe_openrouter_chunked(audio_file: Path, job_dir: Path, model: str) -> str:
+    chunks_dir = job_dir / "openrouter_chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+    chunk_pattern = chunks_dir / "chunk_%03d.mp3"
+    print(
+        f"Audio file is {audio_file.stat().st_size} bytes; splitting into "
+        f"{settings.openrouter_transcription_chunk_seconds}s OpenRouter chunks...",
+        flush=True,
+    )
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(audio_file),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-b:a",
+            "64k",
+            "-f",
+            "segment",
+            "-segment_time",
+            str(settings.openrouter_transcription_chunk_seconds),
+            str(chunk_pattern),
+        ],
+        check=True,
+    )
+
+    chunks = sorted(chunks_dir.glob("chunk_*.mp3"))
+    if not chunks:
+        raise RuntimeError("OpenRouter chunking finished but no audio chunks were created")
+
+    transcript_parts = []
+    usage_parts = []
+    transcript_path = job_dir / "transcript.txt"
+    for index, chunk in enumerate(chunks, start=1):
+        print(f"Transcribing OpenRouter chunk {index}/{len(chunks)}: {chunk.name}", flush=True)
+        response_data = transcribe_openrouter_file(chunk, model)
+        text = extract_openrouter_text(response_data)
+        if text:
+            transcript_parts.append(text)
+            transcript_path.write_text(normalize_transcript_text(" ".join(transcript_parts)), encoding="utf-8")
+            print(text, flush=True)
+
+        usage = response_data.get("usage")
+        if usage:
+            usage_parts.append({"chunk": chunk.name, "usage": usage})
+
+    transcript = normalize_transcript_text(" ".join(transcript_parts))
+    transcript_path.write_text(transcript, encoding="utf-8")
+    if usage_parts:
+        (job_dir / "transcription_usage.json").write_text(
+            json.dumps(usage_parts, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    return transcript
+
+
+def transcribe_openrouter_file(audio_file: Path, model: str) -> dict:
     audio_format = audio_file.suffix.lower().lstrip(".") or "wav"
     payload = {
         "model": model,
@@ -118,25 +202,14 @@ def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str) -> str:
         method="POST",
     )
 
-    response_data = call_openrouter_transcription(request, model)
+    return call_openrouter_transcription(request, model)
 
+
+def extract_openrouter_text(response_data: dict) -> str:
     text = response_data.get("text")
     if not isinstance(text, str):
         raise RuntimeError(f"OpenRouter transcription response does not contain text: {response_data}")
-    text = normalize_transcript_text(text)
-
-    transcript_path = job_dir / "transcript.txt"
-    transcript_path.write_text(text, encoding="utf-8")
-    print(text, flush=True)
-
-    usage = response_data.get("usage")
-    if usage:
-        (job_dir / "transcription_usage.json").write_text(
-            json.dumps(usage, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-    return text
+    return normalize_transcript_text(text)
 
 
 def call_openrouter_transcription(request: Request, model: str) -> dict:

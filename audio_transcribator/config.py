@@ -50,6 +50,12 @@ class Settings:
 
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
         self.openrouter_base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        self.openrouter_transcription_max_bytes = int(
+            os.getenv("OPENROUTER_TRANSCRIPTION_MAX_BYTES", str(18 * 1024 * 1024))
+        )
+        self.openrouter_transcription_chunk_seconds = int(
+            os.getenv("OPENROUTER_TRANSCRIPTION_CHUNK_SECONDS", "600")
+        )
         self.summary_model = os.getenv("SUMMARY_MODEL", "qwen/qwen3.5-35b-a3b")
         self.transcription_models_file = Path(
             os.getenv("TRANSCRIPTION_MODELS_FILE", self.base_dir / "audio_transcribator" / "transcription_models.json")
