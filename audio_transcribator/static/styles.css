@@ -165,6 +165,11 @@ button:hover,
   background: var(--accent-dark);
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
 .ghost-button {
   color: var(--text);
   background: #f7fff6;
@@ -194,6 +199,10 @@ button:hover,
 .error {
   margin: 0;
   color: var(--danger);
+}
+
+.editor-error {
+  margin-bottom: 12px;
 }
 
 .downloads {

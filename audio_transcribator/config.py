@@ -57,6 +57,8 @@ class Settings:
             os.getenv("OPENROUTER_TRANSCRIPTION_CHUNK_SECONDS", "600")
         )
         self.summary_model = os.getenv("SUMMARY_MODEL", "qwen/qwen3.5-35b-a3b")
+        self.editor_model = os.getenv("EDITOR_MODEL", "qwen/qwen3.6-35b-a3b")
+        self.editor_temperature = float(os.getenv("EDITOR_TEMPERATURE", "0.1"))
         self.transcription_models_file = Path(
             os.getenv("TRANSCRIPTION_MODELS_FILE", self.base_dir / "audio_transcribator" / "transcription_models.json")
         ).resolve()

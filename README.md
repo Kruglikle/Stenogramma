@@ -9,6 +9,7 @@ FastAPI-сервис для обработки аудио- и видеофайл
 - `POST /process` — загрузка аудио/видео и запуск фоновой обработки.
 - `GET /transcription-models` — список доступных моделей транскрибации.
 - `GET /result/{job_id}` — получение результата обработки по ID задачи.
+- `POST /result/{job_id}/edit` — ИИ-редактура готовой стенограммы через OpenRouter.
 - `GET /download/{job_id}/{filename}` — скачивание отдельных файлов результата.
 - Token-based авторизация через `Authorization: Bearer <token>`.
 - Пользователи хранятся в PostgreSQL, пароль сохраняется в виде hash.
@@ -79,6 +80,7 @@ audio_transcribator/
     audio.py             # ffmpeg и подготовка аудио
     transcription.py     # faster-whisper
     summary.py           # LLM summary
+    editor.py            # ИИ-редактура стенограммы
     diarization.py       # pyannote diarization
   utils/files.py         # файловые helper'ы
   worker.py              # CLI/background pipeline
@@ -95,7 +97,7 @@ data/
 
 - `API_TOKEN`, `API_USERNAME`, `API_PASSWORD`, `ADD_USER_ADMIN_TOKEN`
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`
-- `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `SUMMARY_MODEL`
+- `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `SUMMARY_MODEL`, `EDITOR_MODEL`, `EDITOR_TEMPERATURE`
 - `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`
 - `TRANSCRIPTION_MODELS_FILE`
 - `ENABLE_DIARIZATION`, `HF_TOKEN`

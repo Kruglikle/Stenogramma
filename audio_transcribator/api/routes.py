@@ -6,6 +6,7 @@ from audio_transcribator.auth import check_add_user_auth, check_auth, verify_cre
 from audio_transcribator.config import settings
 from audio_transcribator.db import create_user
 from audio_transcribator.models import AddUserRequest, LoginRequest, ProcessUrlRequest
+from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
@@ -87,6 +88,34 @@ def get_result(job_id: str, authorization: str | None = Header(default=None)):
         return build_job_result(job_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Job not found")
+
+
+@router.post("/result/{job_id}/edit")
+def edit_result(job_id: str, authorization: str | None = Header(default=None)):
+    check_auth(authorization)
+
+    try:
+        result = build_job_result(job_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    transcript = result.get("transcript")
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Transcript is not ready")
+
+    try:
+        edited_transcript = edit_transcript(transcript, settings.results_dir / job_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI editing failed: {exc}")
+
+    return {
+        "job_id": job_id,
+        "model": settings.editor_model,
+        "file": "edited_transcript.txt",
+        "edited_transcript": edited_transcript,
+    }
 
 
 @router.get("/download/{job_id}/{filename}")

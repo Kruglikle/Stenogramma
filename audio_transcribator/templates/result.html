@@ -20,9 +20,9 @@
     {% if downloads %}
       <div class="downloads">
         {% for filename in downloads %}
-          <a class="{% if filename == 'transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
+          <a class="{% if filename == 'transcript.txt' or filename == 'edited_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
             Скачать
-            {% if filename == 'transcript.txt' %}стенограмму{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
+            {% if filename == 'transcript.txt' %}стенограмму{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
           </a>
         {% endfor %}
       </div>
@@ -44,8 +44,28 @@
 <div id="transcript-panel">
   {% if result.transcript %}
   <section class="panel">
-    <h2>Стенограмма</h2>
+    <div class="section-header compact-header">
+      <div>
+        <h2>Стенограмма</h2>
+        <p class="muted">Модель редактора: {{ editor_model }}</p>
+      </div>
+      <form method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
+        <button type="submit">ИИ-редактура</button>
+      </form>
+    </div>
+    {% if editor_error %}
+      <p class="error editor-error">{{ editor_error }}</p>
+    {% endif %}
     <pre>{{ result.transcript }}</pre>
+  </section>
+  {% endif %}
+</div>
+
+<div id="edited-transcript-panel">
+  {% if result.edited_transcript %}
+  <section class="panel">
+    <h2>ИИ-редактура</h2>
+    <pre>{{ result.edited_transcript }}</pre>
   </section>
   {% endif %}
 </div>
@@ -76,6 +96,15 @@
 {% block scripts %}
 <script>
   (() => {
+    document.querySelectorAll("[data-editor-form]").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const button = form.querySelector("button");
+        if (!button) return;
+        button.disabled = true;
+        button.textContent = "Редактирую...";
+      });
+    });
+
     const root = document.querySelector("[data-job-id]");
     if (!root) return;
 
@@ -105,7 +134,7 @@
           status.textContent = nextStatus.textContent;
         }
 
-        for (const id of ["downloads", "summary-panel", "transcript-panel", "log-panel"]) {
+        for (const id of ["downloads", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel"]) {
           const current = document.getElementById(id);
           const next = doc.getElementById(id);
           if (current && next) {

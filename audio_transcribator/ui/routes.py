@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
+from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
@@ -115,8 +116,39 @@ def result_page(request: Request, job_id: str, ui_token: str | None = Cookie(def
     return templates.TemplateResponse(
         request,
         "result.html",
-        {"result": result, "downloads": downloads},
+        {"result": result, "downloads": downloads, "editor_model": settings.editor_model},
     )
+
+
+@router.post("/result/{job_id}/edit", response_class=HTMLResponse)
+def edit_result_transcript(request: Request, job_id: str, ui_token: str | None = Cookie(default=None)):
+    require_ui_auth(ui_token)
+    try:
+        result = build_job_result(job_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    transcript = result.get("transcript")
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Transcript is not ready")
+
+    try:
+        job_dir = settings.results_dir / job_id
+        edit_transcript(transcript, job_dir)
+        return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as exc:
+        downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
+        return templates.TemplateResponse(
+            request,
+            "result.html",
+            {
+                "result": result,
+                "downloads": downloads,
+                "editor_model": settings.editor_model,
+                "editor_error": str(exc),
+            },
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @router.get("/download/{job_id}/{filename}")

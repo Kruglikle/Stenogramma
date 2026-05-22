@@ -73,6 +73,7 @@ def build_job_result(job_id: str) -> dict:
     job_dir = settings.results_dir / job_id
     summary_file = job_dir / "summary.txt"
     transcript_file = job_dir / "transcript.txt"
+    edited_transcript_file = job_dir / "edited_transcript.txt"
     log_file = job_dir / "run.log"
 
     if not job_dir.exists():
@@ -92,6 +93,9 @@ def build_job_result(job_id: str) -> dict:
 
     if transcript_file.exists():
         result["transcript"] = transcript_file.read_text(encoding="utf-8", errors="replace")
+
+    if edited_transcript_file.exists():
+        result["edited_transcript"] = edited_transcript_file.read_text(encoding="utf-8", errors="replace")
 
     if summary_file.exists():
         result["summary"] = summary_file.read_text(encoding="utf-8", errors="replace")
