@@ -49,12 +49,17 @@ PostgreSQL поднимается отдельным контейнером `db`
 Добавить пользователя можно через admin token:
 
 ```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri http://localhost:8001/add-user `
-  -Headers @{ Authorization = "Bearer change-me-add-user-token" } `
-  -ContentType "application/json" `
-  -Body '{"username":"user1","password":"strong-password"}'
+$headers = @{
+    "Authorization" = "Bearer change-me-add-user-token"
+    "Content-Type" = "application/json"
+}
+
+$body = '{"username":"newuser","password":"newpassword"}'
+
+Invoke-WebRequest -Uri "http://37.203.242.19:8001/add-user" `
+    -Method Post `
+    -Headers $headers `
+    -Body $body
 ```
 
 То же самое через `curl`:
