@@ -56,7 +56,7 @@ $headers = @{
 
 $body = '{"username":"newuser","password":"newpassword"}'
 
-Invoke-WebRequest -Uri "http://37.203.242.19:8001/add-user" `
+Invoke-WebRequest -Uri "http://localhost:8000/add-user" `
     -Method Post `
     -Headers $headers `
     -Body $body
