@@ -10,6 +10,7 @@ from faster_whisper import WhisperModel
 
 from audio_transcribator.config import settings
 from audio_transcribator.services.transcription_models import resolve_transcription_model
+from audio_transcribator.utils.files import write_text_atomic
 
 
 LOCAL_MODEL_REQUIRED_FILES = {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"}
@@ -59,6 +60,10 @@ def transcribe(audio_file: Path, job_dir: Path, transcription_model_id: str | No
     return transcribe_local(audio_file, job_dir)
 
 
+def _save_transcript_file(job_dir: Path, transcript: str) -> None:
+    write_text_atomic(job_dir / "stenogramma.txt", transcript)
+
+
 def transcribe_local(audio_file: Path, job_dir: Path) -> str:
     settings.model_cache_dir.mkdir(parents=True, exist_ok=True)
     model = WhisperModel(
@@ -72,22 +77,16 @@ def transcribe_local(audio_file: Path, job_dir: Path) -> str:
         language=settings.transcription_language,
         task="transcribe",
     )
-    transcript_path = job_dir / "transcript.txt"
-
     segment_texts = []
-    with open(transcript_path, "w", encoding="utf-8") as transcript_file:
-        for segment in segments:
-            text = normalize_transcript_text(segment.text)
-            if text:
-                print(text, flush=True)
-                if segment_texts:
-                    transcript_file.write(" ")
-                transcript_file.write(text)
-                transcript_file.flush()
-                segment_texts.append(text)
+    for segment in segments:
+        text = normalize_transcript_text(segment.text)
+        if text:
+            print(text, flush=True)
+            segment_texts.append(text)
+            _save_transcript_file(job_dir, normalize_transcript_text(" ".join(segment_texts)))
 
     transcript = normalize_transcript_text(" ".join(segment_texts))
-    transcript_path.write_text(transcript, encoding="utf-8")
+    _save_transcript_file(job_dir, transcript)
 
     return transcript
 
@@ -102,8 +101,7 @@ def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str) -> str:
     response_data = transcribe_openrouter_file(audio_file, model)
     text = extract_openrouter_text(response_data)
 
-    transcript_path = job_dir / "transcript.txt"
-    transcript_path.write_text(text, encoding="utf-8")
+    _save_transcript_file(job_dir, text)
     print(text, flush=True)
 
     usage = response_data.get("usage")
@@ -153,14 +151,14 @@ def transcribe_openrouter_chunked(audio_file: Path, job_dir: Path, model: str) -
 
     transcript_parts = []
     usage_parts = []
-    transcript_path = job_dir / "transcript.txt"
     for index, chunk in enumerate(chunks, start=1):
         print(f"Transcribing OpenRouter chunk {index}/{len(chunks)}: {chunk.name}", flush=True)
         response_data = transcribe_openrouter_file(chunk, model)
         text = extract_openrouter_text(response_data)
         if text:
             transcript_parts.append(text)
-            transcript_path.write_text(normalize_transcript_text(" ".join(transcript_parts)), encoding="utf-8")
+            current_transcript = normalize_transcript_text(" ".join(transcript_parts))
+            _save_transcript_file(job_dir, current_transcript)
             print(text, flush=True)
 
         usage = response_data.get("usage")
@@ -168,7 +166,7 @@ def transcribe_openrouter_chunked(audio_file: Path, job_dir: Path, model: str) -
             usage_parts.append({"chunk": chunk.name, "usage": usage})
 
     transcript = normalize_transcript_text(" ".join(transcript_parts))
-    transcript_path.write_text(transcript, encoding="utf-8")
+    _save_transcript_file(job_dir, transcript)
     if usage_parts:
         (job_dir / "transcription_usage.json").write_text(
             json.dumps(usage_parts, ensure_ascii=False, indent=2),

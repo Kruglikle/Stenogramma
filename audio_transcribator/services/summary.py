@@ -3,6 +3,7 @@ from pathlib import Path
 from openai import OpenAI
 
 from audio_transcribator.config import settings
+from audio_transcribator.utils.files import write_text_atomic
 
 
 SUMMARY_PROMPT = """Сделай анализ расшифровки.
@@ -32,9 +33,7 @@ def summarize(transcript: str, job_dir: Path) -> str | None:
     )
 
     result = response.choices[0].message.content or ""
-    with open(job_dir / "summary.txt", "w", encoding="utf-8") as f:
-        f.write(result)
+    write_text_atomic(job_dir / "summary.txt", result)
 
     print("Summary saved.")
     return result
-

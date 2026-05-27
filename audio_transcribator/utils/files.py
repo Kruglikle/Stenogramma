@@ -2,13 +2,19 @@ from pathlib import Path
 
 
 ALLOWED_DOWNLOADS = {
-    "transcript.txt",
+    "stenogramma.txt",
     "edited_transcript.txt",
     "summary.txt",
     "run.log",
     "work_audio.wav",
     "diarization.txt",
 }
+
+
+def write_text_atomic(path: Path, content: str) -> None:
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def tail(path: Path, lines: int = 30) -> str:
