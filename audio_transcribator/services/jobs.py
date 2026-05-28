@@ -2,6 +2,8 @@ import json
 import shutil
 import subprocess
 import sys
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -24,6 +26,40 @@ STATUS_LABELS = {
     "failed": "Ошибка",
 }
 
+TIMING_LABELS = {
+    "upload": "Загрузка файла",
+    "download": "Скачивание медиа",
+    "prepare_audio": "Подготовка аудио",
+    "transcription": "Транскрибация",
+    "diarization": "Диаризация",
+    "summary": "Резюме",
+    "editing": "ИИ-редактура",
+}
+TIMING_STATUS_LABELS = {
+    "completed": "готово",
+    "failed": "ошибка",
+    "skipped": "пропущено",
+}
+
+
+def utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def format_duration(seconds: float | int | None) -> str:
+    if seconds is None:
+        return ""
+
+    total_seconds = int(round(float(seconds)))
+    minutes, seconds = divmod(total_seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+
+    if hours:
+        return f"{hours} ч {minutes} мин {seconds} сек"
+    if minutes:
+        return f"{minutes} мин {seconds} сек"
+    return f"{seconds} сек"
+
 
 def save_job_metadata(
     job_dir: Path,
@@ -32,15 +68,48 @@ def save_job_metadata(
     transcription_model_id: str | None = None,
 ) -> None:
     existing_metadata = load_job_metadata(job_dir)
+    started_at = existing_metadata.get("started_at") or utc_now_iso()
     metadata = {
         "job_id": job_dir.name,
         "status": status,
         "input_file": str(input_file),
+        "started_at": started_at,
         "transcription_model": transcription_model_id
         or existing_metadata.get("transcription_model")
         or DEFAULT_TRANSCRIPTION_MODEL_ID,
+        "timings": existing_metadata.get("timings", {}),
         "files": sorted(p.name for p in job_dir.iterdir() if p.is_file()),
     }
+    if status in {"completed", "completed_without_summary", "failed"}:
+        metadata["finished_at"] = existing_metadata.get("finished_at") or utc_now_iso()
+        started = parse_iso_datetime(started_at)
+        finished = parse_iso_datetime(metadata["finished_at"])
+        if started and finished:
+            metadata["total_seconds"] = max((finished - started).total_seconds(), 0)
+    with open(job_dir / "metadata.json", "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+
+def parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def save_job_timing(job_dir: Path, step: str, elapsed_seconds: float, status: str = "completed") -> None:
+    metadata = load_job_metadata(job_dir)
+    timings = metadata.setdefault("timings", {})
+    timings[step] = {
+        "label": TIMING_LABELS.get(step, step),
+        "seconds": round(elapsed_seconds, 3),
+        "duration": format_duration(elapsed_seconds),
+        "status": status,
+        "finished_at": utc_now_iso(),
+    }
+    metadata["files"] = sorted(p.name for p in job_dir.iterdir() if p.is_file())
     with open(job_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
 
@@ -90,6 +159,7 @@ def build_job_result(job_id: str) -> dict:
         "files": files,
         "status": status,
         "status_label": STATUS_LABELS.get(status, status.title()),
+        "timings": build_timing_result(metadata),
     }
 
     if transcript_file.exists():
@@ -107,6 +177,48 @@ def build_job_result(job_id: str) -> dict:
         result["log_tail"] = log_tail
 
     return result
+
+
+def build_timing_result(metadata: dict) -> dict:
+    timings = metadata.get("timings") or {}
+    ordered_steps = [
+        "upload",
+        "download",
+        "prepare_audio",
+        "transcription",
+        "diarization",
+        "summary",
+        "editing",
+    ]
+    items = []
+    for step in ordered_steps:
+        timing = timings.get(step)
+        if not timing:
+            continue
+        seconds = timing.get("seconds")
+        items.append(
+            {
+                "step": step,
+                "label": timing.get("label") or TIMING_LABELS.get(step, step),
+                "seconds": seconds,
+                "duration": timing.get("duration") or format_duration(seconds),
+                "status": timing.get("status", "completed"),
+                "status_label": TIMING_STATUS_LABELS.get(timing.get("status", "completed"), timing.get("status")),
+            }
+        )
+
+    total_seconds = metadata.get("total_seconds")
+    item_total_seconds = sum(float(item.get("seconds") or 0) for item in items)
+    if total_seconds is None and items:
+        total_seconds = item_total_seconds
+    elif total_seconds is not None:
+        total_seconds = max(float(total_seconds), item_total_seconds)
+
+    return {
+        "items": items,
+        "total_seconds": total_seconds,
+        "total_duration": format_duration(total_seconds),
+    }
 
 
 def get_job_file(job_id: str, filename: str) -> Path:
@@ -131,10 +243,12 @@ def start_uploaded_file(file: UploadFile, transcription_model_id: str | None = N
     safe_filename = file.filename or "upload"
     input_path = settings.upload_dir / f"{job_id}_{safe_filename}"
 
+    started = time.perf_counter()
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     save_job_metadata(job_dir, input_path, status="started", transcription_model_id=transcription_model["id"])
+    save_job_timing(job_dir, "upload", time.perf_counter() - started)
 
     log_path = job_dir / "run.log"
     command = [

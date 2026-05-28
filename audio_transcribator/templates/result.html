@@ -32,6 +32,30 @@
   </div>
 </section>
 
+<div id="timings-panel">
+  {% if result.timings and result.timings["items"] %}
+  <section class="panel timings-panel">
+    <div class="section-header compact-header">
+      <div>
+        <h2>Время обработки</h2>
+        {% if result.timings.total_duration %}
+          <p class="muted">Всего: {{ result.timings.total_duration }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="timings-list">
+      {% for timing in result.timings["items"] %}
+        <div class="timing-row">
+          <span>{{ timing.label }}</span>
+          <span class="timing-status timing-status-{{ timing.status }}">{{ timing.status_label }}</span>
+          <strong>{{ timing.duration }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+
 <div id="summary-panel">
   {% if result.summary %}
   <section class="panel">
@@ -154,7 +178,7 @@
           status.textContent = nextStatus.textContent;
         }
 
-        for (const id of ["downloads", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel"]) {
+        for (const id of ["downloads", "timings-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel"]) {
           const current = document.getElementById(id);
           const next = doc.getElementById(id);
           if (current && next) {

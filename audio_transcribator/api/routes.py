@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from psycopg.errors import UniqueViolation
@@ -8,7 +10,7 @@ from audio_transcribator.db import create_user
 from audio_transcribator.models import AddUserRequest, LoginRequest, ProcessUrlRequest
 from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.editor_models import list_editor_model_groups, resolve_editor_model
-from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
+from audio_transcribator.services.jobs import build_job_result, get_job_file, save_job_timing, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
     TranscriptionModelError,
@@ -117,10 +119,16 @@ def edit_result(
 
     try:
         selected_model = resolve_editor_model(editor_model, settings.editor_model)
+        started = time.perf_counter()
         edited_transcript = edit_transcript(transcript, settings.results_dir / job_id, model=selected_model["id"])
+        save_job_timing(settings.results_dir / job_id, "editing", time.perf_counter() - started)
     except (ValueError, RuntimeError) as exc:
+        if "started" in locals():
+            save_job_timing(settings.results_dir / job_id, "editing", time.perf_counter() - started, status="failed")
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
+        if "started" in locals():
+            save_job_timing(settings.results_dir / job_id, "editing", time.perf_counter() - started, status="failed")
         raise HTTPException(status_code=502, detail=f"AI editing failed: {exc}")
 
     return {

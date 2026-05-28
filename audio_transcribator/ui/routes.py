@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Cookie, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+import time
 
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
 from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.editor_models import list_editor_model_groups
-from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
+from audio_transcribator.services.jobs import build_job_result, get_job_file, save_job_timing, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
     TranscriptionModelError,
@@ -145,9 +146,13 @@ def edit_result_transcript(
 
     try:
         job_dir = settings.results_dir / job_id
+        started = time.perf_counter()
         edit_transcript(transcript, job_dir, model=editor_model)
+        save_job_timing(job_dir, "editing", time.perf_counter() - started)
         return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
     except (ValueError, RuntimeError) as exc:
+        save_job_timing(settings.results_dir / job_id, "editing", time.perf_counter() - started, status="failed")
+        result = build_job_result(job_id)
         downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
         return templates.TemplateResponse(
             request,
@@ -162,6 +167,8 @@ def edit_result_transcript(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     except Exception as exc:
+        save_job_timing(settings.results_dir / job_id, "editing", time.perf_counter() - started, status="failed")
+        result = build_job_result(job_id)
         downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
         return templates.TemplateResponse(
             request,

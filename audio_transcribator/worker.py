@@ -1,13 +1,32 @@
 import argparse
+import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 from audio_transcribator.config import settings
 from audio_transcribator.services.audio import download_media, prepare_audio
 from audio_transcribator.services.diarization import diarize
-from audio_transcribator.services.jobs import save_job_metadata
+from audio_transcribator.services.jobs import save_job_metadata, save_job_timing
 from audio_transcribator.services.summary import summarize
 from audio_transcribator.services.transcription import transcribe
 from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPTION_MODEL_ID
+
+
+T = TypeVar("T")
+
+
+def timed_step(job_dir: Path, step: str, action: Callable[[], T], skipped: Callable[[T], bool] | None = None) -> T:
+    started = time.perf_counter()
+    try:
+        result = action()
+    except Exception:
+        save_job_timing(job_dir, step, time.perf_counter() - started, status="failed")
+        raise
+
+    status = "skipped" if skipped and skipped(result) else "completed"
+    save_job_timing(job_dir, step, time.perf_counter() - started, status=status)
+    return result
 
 
 def save_metadata(
@@ -28,11 +47,15 @@ def process_file(
     save_metadata(job_dir, input_file, status="running", transcription_model_id=transcription_model_id)
 
     try:
-        audio_file = prepare_audio(input_file, job_dir)
-        transcript = transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id)
+        audio_file = timed_step(job_dir, "prepare_audio", lambda: prepare_audio(input_file, job_dir))
+        transcript = timed_step(
+            job_dir,
+            "transcription",
+            lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
+        )
         if settings.enable_diarization:
-            diarize(audio_file, job_dir)
-        summarize(transcript, job_dir)
+            timed_step(job_dir, "diarization", lambda: diarize(audio_file, job_dir), skipped=lambda result: not result)
+        timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
         print("Processing completed.")
     except Exception:
@@ -49,13 +72,17 @@ def process_url(
     save_metadata(job_dir, source_url, status="running", transcription_model_id=transcription_model_id)
 
     try:
-        input_file = download_media(source_url, job_dir)
+        input_file = timed_step(job_dir, "download", lambda: download_media(source_url, job_dir))
         save_metadata(job_dir, input_file, status="running", transcription_model_id=transcription_model_id)
-        audio_file = prepare_audio(input_file, job_dir)
-        transcript = transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id)
+        audio_file = timed_step(job_dir, "prepare_audio", lambda: prepare_audio(input_file, job_dir))
+        transcript = timed_step(
+            job_dir,
+            "transcription",
+            lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
+        )
         if settings.enable_diarization:
-            diarize(audio_file, job_dir)
-        summarize(transcript, job_dir)
+            timed_step(job_dir, "diarization", lambda: diarize(audio_file, job_dir), skipped=lambda result: not result)
+        timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
         print("Processing completed.")
     except Exception:
