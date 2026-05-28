@@ -169,6 +169,7 @@ def build_job_result(job_id: str) -> dict:
 
     if edited_transcript_file.exists():
         result["edited_transcript"] = edited_transcript_file.read_text(encoding="utf-8", errors="replace")
+        result["editing_timing"] = result["timings"].get("by_step", {}).get("editing")
 
     if summary_file.exists():
         result["summary"] = summary_file.read_text(encoding="utf-8", errors="replace")
@@ -216,6 +217,7 @@ def build_timing_result(metadata: dict) -> dict:
 
     return {
         "items": items,
+        "by_step": {item["step"]: item for item in items},
         "total_seconds": total_seconds,
         "total_duration": format_duration(total_seconds),
     }
