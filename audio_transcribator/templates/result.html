@@ -49,8 +49,22 @@
         <h2>Стенограмма</h2>
         <p class="muted">Модель редактора: {{ editor_model }}</p>
       </div>
-      <form method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
-        <button type="submit">ИИ-редактура</button>
+      <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
+        <details>
+          <summary role="button">ИИ-редактура</summary>
+          <div class="editor-menu-list">
+            {% for group in editor_model_groups %}
+              <div class="editor-menu-group">
+                <div class="editor-menu-title">{{ group.label }}</div>
+                {% for model in group.models %}
+                  <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
+                    {{ model.label }}
+                  </button>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+        </details>
       </form>
     </div>
     {% if editor_error %}
@@ -96,13 +110,19 @@
 {% block scripts %}
 <script>
   (() => {
-    document.querySelectorAll("[data-editor-form]").forEach((form) => {
-      form.addEventListener("submit", () => {
-        const button = form.querySelector("button");
-        if (!button) return;
-        button.disabled = true;
-        button.textContent = "Редактирую...";
+    document.addEventListener("submit", (event) => {
+      const form = event.target.closest("[data-editor-form]");
+      if (!form) return;
+
+      form.querySelectorAll("button, summary").forEach((control) => {
+        control.setAttribute("aria-disabled", "true");
       });
+
+      const submitter = event.submitter;
+      if (submitter) {
+        submitter.disabled = true;
+        submitter.textContent = "Редактирую...";
+      }
     });
 
     const root = document.querySelector("[data-job-id]");

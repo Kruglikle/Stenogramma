@@ -50,6 +50,8 @@ class Settings:
 
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
         self.openrouter_base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.ollama_api_key = os.getenv("OLLAMA_API_KEY", "ollama")
         self.openrouter_transcription_max_bytes = int(
             os.getenv("OPENROUTER_TRANSCRIPTION_MAX_BYTES", str(18 * 1024 * 1024))
         )

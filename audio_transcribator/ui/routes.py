@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
 from audio_transcribator.services.editor import edit_transcript
+from audio_transcribator.services.editor_models import list_editor_model_groups
 from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
@@ -116,12 +117,22 @@ def result_page(request: Request, job_id: str, ui_token: str | None = Cookie(def
     return templates.TemplateResponse(
         request,
         "result.html",
-        {"result": result, "downloads": downloads, "editor_model": settings.editor_model},
+        {
+            "result": result,
+            "downloads": downloads,
+            "editor_model": settings.editor_model,
+            "editor_model_groups": list_editor_model_groups(),
+        },
     )
 
 
 @router.post("/result/{job_id}/edit", response_class=HTMLResponse)
-def edit_result_transcript(request: Request, job_id: str, ui_token: str | None = Cookie(default=None)):
+def edit_result_transcript(
+    request: Request,
+    job_id: str,
+    editor_model: str = Form(default=""),
+    ui_token: str | None = Cookie(default=None),
+):
     require_ui_auth(ui_token)
     try:
         result = build_job_result(job_id)
@@ -134,8 +145,22 @@ def edit_result_transcript(request: Request, job_id: str, ui_token: str | None =
 
     try:
         job_dir = settings.results_dir / job_id
-        edit_transcript(transcript, job_dir)
+        edit_transcript(transcript, job_dir, model=editor_model)
         return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
+    except (ValueError, RuntimeError) as exc:
+        downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
+        return templates.TemplateResponse(
+            request,
+            "result.html",
+            {
+                "result": result,
+                "downloads": downloads,
+                "editor_model": settings.editor_model,
+                "editor_model_groups": list_editor_model_groups(),
+                "editor_error": str(exc),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
     except Exception as exc:
         downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
         return templates.TemplateResponse(
@@ -145,6 +170,7 @@ def edit_result_transcript(request: Request, job_id: str, ui_token: str | None =
                 "result": result,
                 "downloads": downloads,
                 "editor_model": settings.editor_model,
+                "editor_model_groups": list_editor_model_groups(),
                 "editor_error": str(exc),
             },
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -7,6 +7,7 @@ from audio_transcribator.config import settings
 from audio_transcribator.db import create_user
 from audio_transcribator.models import AddUserRequest, LoginRequest, ProcessUrlRequest
 from audio_transcribator.services.editor import edit_transcript
+from audio_transcribator.services.editor_models import list_editor_model_groups, resolve_editor_model
 from audio_transcribator.services.jobs import build_job_result, get_job_file, start_uploaded_file, start_url
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
@@ -80,6 +81,13 @@ def get_transcription_models(authorization: str | None = Header(default=None)):
     return {"models": list_transcription_models(), "default": DEFAULT_TRANSCRIPTION_MODEL_ID}
 
 
+@router.get("/editor-models")
+def get_editor_models(authorization: str | None = Header(default=None)):
+    check_auth(authorization)
+
+    return {"groups": list_editor_model_groups(), "default": settings.editor_model}
+
+
 @router.get("/result/{job_id}")
 def get_result(job_id: str, authorization: str | None = Header(default=None)):
     check_auth(authorization)
@@ -91,7 +99,11 @@ def get_result(job_id: str, authorization: str | None = Header(default=None)):
 
 
 @router.post("/result/{job_id}/edit")
-def edit_result(job_id: str, authorization: str | None = Header(default=None)):
+def edit_result(
+    job_id: str,
+    editor_model: str = Form(default=""),
+    authorization: str | None = Header(default=None),
+):
     check_auth(authorization)
 
     try:
@@ -104,15 +116,17 @@ def edit_result(job_id: str, authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=400, detail="Transcript is not ready")
 
     try:
-        edited_transcript = edit_transcript(transcript, settings.results_dir / job_id)
-    except RuntimeError as exc:
+        selected_model = resolve_editor_model(editor_model, settings.editor_model)
+        edited_transcript = edit_transcript(transcript, settings.results_dir / job_id, model=selected_model["id"])
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI editing failed: {exc}")
 
     return {
         "job_id": job_id,
-        "model": settings.editor_model,
+        "model": selected_model["model"],
+        "provider": selected_model["provider"],
         "file": "edited_transcript.txt",
         "edited_transcript": edited_transcript,
     }

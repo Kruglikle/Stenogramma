@@ -170,6 +170,82 @@ button:disabled {
   opacity: 0.75;
 }
 
+.editor-menu {
+  position: relative;
+}
+
+.editor-menu details {
+  position: relative;
+}
+
+.editor-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 11px 20px;
+  color: #ffffff;
+  background: linear-gradient(180deg, #64b984 0%, var(--accent) 100%);
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 750;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(52, 126, 85, 0.18);
+  list-style: none;
+}
+
+.editor-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.editor-menu summary:hover,
+.editor-menu details[open] summary {
+  background: var(--accent-dark);
+}
+
+.editor-menu-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: min(320px, calc(100vw - 48px));
+  padding: 10px;
+  background: #fbfffb;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+.editor-menu-group + .editor-menu-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.editor-menu-title {
+  padding: 4px 8px 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.editor-menu-item {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 38px;
+  padding: 9px 10px;
+  color: var(--text);
+  background: transparent;
+  border-radius: 12px;
+  box-shadow: none;
+  font-size: 14px;
+  text-align: left;
+}
+
+.editor-menu-item:hover {
+  background: var(--accent-soft);
+}
+
 .ghost-button {
   color: var(--text);
   background: #f7fff6;
@@ -327,5 +403,10 @@ pre {
 
   .actions {
     justify-content: flex-start;
+  }
+
+  .editor-menu-list {
+    left: 0;
+    right: auto;
   }
 }
