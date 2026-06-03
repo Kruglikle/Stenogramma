@@ -17,7 +17,8 @@ FastAPI-сервис для обработки аудио- и видеофайл
 - Поддержка аудио и видеоформатов, совместимых с `ffmpeg`.
 - Выбор модели транскрибации: локальная `faster-whisper` или OpenRouter STT модели из `audio_transcribator/transcription_models.json`.
 - Выбор модели ИИ-редактуры: локальные `gemma3:4b`, `qwen3:8b` через Ollama или `qwen/qwen3.6-35b-a3b` через OpenRouter.
-- Опциональная diarization через `pyannote`, если включен `ENABLE_DIARIZATION=true`.
+- Резюме стенограммы генерируется локальной Ollama-моделью из `SUMMARY_MODEL`.
+- Diarization через Hugging Face/pyannote отключена.
 
 ## Запуск локально
 
@@ -86,9 +87,9 @@ audio_transcribator/
   services/
     audio.py             # ffmpeg и подготовка аудио
     transcription.py     # faster-whisper
-    summary.py           # LLM summary
+    summary.py           # local Ollama summary
     editor.py            # ИИ-редактура стенограммы
-    diarization.py       # pyannote diarization
+    diarization.py       # diarization stub
   utils/files.py         # файловые helper'ы
   worker.py              # CLI/background pipeline
 app.py                   # совместимый ASGI entrypoint
@@ -166,7 +167,8 @@ extra_hosts:
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_API_KEY=ollama
-EDITOR_MODEL=qwen/qwen3.6-35b-a3b
+SUMMARY_MODEL=qwen3:8b
+EDITOR_MODEL=qwen3:8b
 OPENROUTER_API_KEY=
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
@@ -183,7 +185,7 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 OLLAMA_BASE_URL=http://<server-ip>:11434
 ```
 
-Для OpenRouter-редактуры заполните `OPENROUTER_API_KEY`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
+Для OpenRouter-редактуры заполните `OPENROUTER_API_KEY`. Резюме всегда идет через локальную Ollama-модель из `SUMMARY_MODEL`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
 
 ## Настройки
 
@@ -192,7 +194,7 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 - `API_TOKEN`, `API_USERNAME`, `API_PASSWORD`, `ADD_USER_ADMIN_TOKEN`
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`
 - `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `OLLAMA_BASE_URL`, `OLLAMA_API_KEY`, `SUMMARY_MODEL`, `EDITOR_MODEL`, `EDITOR_TEMPERATURE`
-- `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`
+- `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`, `WHISPER_LOCAL_FILES_ONLY`
 - `TRANSCRIPTION_MODELS_FILE`
-- `ENABLE_DIARIZATION`, `HF_TOKEN`
+- `ENABLE_DIARIZATION`
 

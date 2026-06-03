@@ -6,8 +6,6 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from faster_whisper import WhisperModel
-
 from audio_transcribator.config import settings
 from audio_transcribator.services.transcription_models import resolve_transcription_model
 from audio_transcribator.utils.files import write_text_atomic
@@ -35,6 +33,12 @@ def resolve_whisper_model_source() -> str:
     cache_repo_dir = settings.model_cache_dir / "faster-whisper" / f"models--{repo_name.replace('/', '--')}"
     snapshots_dir = cache_repo_dir / "snapshots"
     if not snapshots_dir.exists():
+        if settings.whisper_local_files_only:
+            raise RuntimeError(
+                "Local faster-whisper model was not found. Set WHISPER_MODEL to a local model directory "
+                "or pre-download the model into data/model_cache/faster-whisper. "
+                "Set WHISPER_LOCAL_FILES_ONLY=false only if Hugging Face downloads are allowed."
+            )
         return configured_model
 
     snapshots = sorted(
@@ -46,6 +50,13 @@ def resolve_whisper_model_source() -> str:
         if all((snapshot / filename).exists() for filename in LOCAL_MODEL_REQUIRED_FILES):
             print(f"Using cached faster-whisper model: {snapshot}")
             return str(snapshot)
+
+    if settings.whisper_local_files_only:
+        raise RuntimeError(
+            "Local faster-whisper model was not found. Set WHISPER_MODEL to a local model directory "
+            "or pre-download the model into data/model_cache/faster-whisper. "
+            "Set WHISPER_LOCAL_FILES_ONLY=false only if Hugging Face downloads are allowed."
+        )
 
     return configured_model
 
@@ -65,11 +76,14 @@ def _save_transcript_file(job_dir: Path, transcript: str) -> None:
 
 
 def transcribe_local(audio_file: Path, job_dir: Path) -> str:
+    from faster_whisper import WhisperModel
+
     settings.model_cache_dir.mkdir(parents=True, exist_ok=True)
     model = WhisperModel(
         resolve_whisper_model_source(),
         compute_type=settings.whisper_compute_type,
         download_root=str(settings.model_cache_dir / "faster-whisper"),
+        local_files_only=settings.whisper_local_files_only,
     )
 
     segments, _ = model.transcribe(

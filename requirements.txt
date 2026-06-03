@@ -6,5 +6,4 @@ pydantic
 psycopg[binary]
 faster-whisper
 openai
-pyannote.audio
 yt-dlp

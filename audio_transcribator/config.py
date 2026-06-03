@@ -27,13 +27,9 @@ class Settings:
         self.upload_dir = Path(os.getenv("UPLOAD_DIR", self.base_dir / "data" / "uploads")).resolve()
         self.results_dir = Path(os.getenv("RESULTS_DIR", self.base_dir / "data" / "api_results")).resolve()
         self.model_cache_dir = Path(os.getenv("MODEL_CACHE_DIR", self.base_dir / "data" / "model_cache")).resolve()
-        self.hf_home = Path(os.getenv("HF_HOME", self.model_cache_dir / "huggingface")).resolve()
-        self.hf_hub_cache = Path(os.getenv("HF_HUB_CACHE", self.hf_home / "hub")).resolve()
-
-        os.environ.setdefault("HF_HOME", str(self.hf_home))
-        os.environ.setdefault("HF_HUB_CACHE", str(self.hf_hub_cache))
-        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
-
+        self.third_party_cache_dir = Path(
+            os.getenv("THIRD_PARTY_CACHE_DIR", self.model_cache_dir / "third_party")
+        ).resolve()
         self.api_token = os.getenv("API_TOKEN", "test-token")
         self.api_username = os.getenv("API_USERNAME", "admin")
         self.api_password = os.getenv("API_PASSWORD", "admin123")
@@ -58,7 +54,7 @@ class Settings:
         self.openrouter_transcription_chunk_seconds = int(
             os.getenv("OPENROUTER_TRANSCRIPTION_CHUNK_SECONDS", "600")
         )
-        self.summary_model = os.getenv("SUMMARY_MODEL", "qwen/qwen3.5-35b-a3b")
+        self.summary_model = os.getenv("SUMMARY_MODEL", "qwen3:8b")
         self.editor_model = os.getenv("EDITOR_MODEL", "qwen/qwen3.6-35b-a3b")
         self.editor_temperature = float(os.getenv("EDITOR_TEMPERATURE", "0.1"))
         self.transcription_models_file = Path(
@@ -67,17 +63,29 @@ class Settings:
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+        self.whisper_local_files_only = os.getenv("WHISPER_LOCAL_FILES_ONLY", "true").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         self.transcription_language = os.getenv("TRANSCRIPTION_LANGUAGE", "ru").strip() or None
+        self.configure_third_party_cache()
 
-        self.hf_token = os.getenv("HF_TOKEN")
         self.enable_diarization = os.getenv("ENABLE_DIARIZATION", "false").lower() in {"1", "true", "yes"}
+
+    def configure_third_party_cache(self) -> None:
+        os.environ.setdefault("HF_HOME", str(self.third_party_cache_dir / "huggingface"))
+        os.environ.setdefault("HF_HUB_CACHE", str(self.third_party_cache_dir / "huggingface" / "hub"))
+        os.environ.setdefault("TRANSFORMERS_CACHE", str(self.third_party_cache_dir / "transformers"))
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+        if self.whisper_local_files_only:
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
     def ensure_dirs(self) -> None:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.model_cache_dir.mkdir(parents=True, exist_ok=True)
-        self.hf_home.mkdir(parents=True, exist_ok=True)
-        self.hf_hub_cache.mkdir(parents=True, exist_ok=True)
+        self.third_party_cache_dir.mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings()
