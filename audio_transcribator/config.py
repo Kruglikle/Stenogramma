@@ -57,9 +57,10 @@ class Settings:
         self.openrouter_transcription_chunk_seconds = int(
             os.getenv("OPENROUTER_TRANSCRIPTION_CHUNK_SECONDS", "600")
         )
-        self.summary_model = os.getenv("SUMMARY_MODEL", "qwen3:8b")
-        self.summary_chunk_chars = int(os.getenv("SUMMARY_CHUNK_CHARS", "3500"))
-        self.editor_model = os.getenv("EDITOR_MODEL", "qwen3:8b")
+        self.summary_model = os.getenv("SUMMARY_MODEL", "gemma3:4b")
+        self.summary_chunk_chars = int(os.getenv("SUMMARY_CHUNK_CHARS", "2500"))
+        self.editor_model = os.getenv("EDITOR_MODEL", "gemma3:4b")
+        self.editor_chunk_chars = int(os.getenv("EDITOR_CHUNK_CHARS", "2500"))
         self.editor_temperature = float(os.getenv("EDITOR_TEMPERATURE", "0.1"))
         self.ollama_request_timeout_seconds = float(os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS", "900"))
         self.transcription_models_file = Path(
