@@ -6,6 +6,19 @@
     </div>
   </div>
 
+  {% if storage_quota %}
+    <div class="storage-quota">
+      <div class="storage-quota-row">
+        <span>Память</span>
+        <strong>{{ storage_quota.used }} / {{ storage_quota.limit }}</strong>
+      </div>
+      <div class="storage-quota-bar" aria-hidden="true">
+        <span style="width: {{ storage_quota.percent if storage_quota.percent < 100 else 100 }}%"></span>
+      </div>
+      <p class="muted">Свободно: {{ storage_quota.remaining }}</p>
+    </div>
+  {% endif %}
+
   {% if cabinet_jobs %}
     <div class="cabinet-list">
       {% for item in cabinet_jobs %}

@@ -352,6 +352,43 @@ button:disabled {
   line-height: 1.2;
 }
 
+.storage-quota {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 11px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.storage-quota-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.storage-quota-row strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.storage-quota-bar {
+  height: 8px;
+  overflow: hidden;
+  background: #dceee1;
+  border-radius: 999px;
+}
+
+.storage-quota-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
 .cabinet-list {
   display: grid;
   gap: 8px;

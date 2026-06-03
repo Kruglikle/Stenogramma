@@ -11,6 +11,7 @@ from audio_transcribator.config import settings
 from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.editor_models import list_editor_model_groups
 from audio_transcribator.services.jobs import (
+    StorageQuotaExceeded,
     build_job_result,
     get_job_file,
     list_user_jobs,
@@ -19,6 +20,7 @@ from audio_transcribator.services.jobs import (
     start_uploaded_file,
     start_url,
     update_job_title,
+    user_storage_quota,
 )
 from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
@@ -47,7 +49,11 @@ def require_ui_auth(ui_token: str | None, ui_user: str | None = None, ui_user_si
 
 
 def build_cabinet_context(username: str) -> dict:
-    return {"cabinet_jobs": list_user_jobs(username), "current_username": username}
+    return {
+        "cabinet_jobs": list_user_jobs(username),
+        "current_username": username,
+        "storage_quota": user_storage_quota(username),
+    }
 
 
 def can_access_job(username: str, job_id: str) -> bool:
@@ -160,7 +166,7 @@ def upload_file(
             )
         else:
             raise ValueError("Загрузите файл или вставьте ссылку на медиа")
-    except (TranscriptionModelError, ValueError) as exc:
+    except (StorageQuotaExceeded, TranscriptionModelError, ValueError) as exc:
         return templates.TemplateResponse(
             request,
             "upload.html",

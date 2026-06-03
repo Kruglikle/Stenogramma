@@ -7,7 +7,12 @@ from typing import TypeVar
 from audio_transcribator.config import settings
 from audio_transcribator.services.audio import download_media, prepare_audio
 from audio_transcribator.services.diarization import diarize
-from audio_transcribator.services.jobs import save_job_metadata, save_job_timing
+from audio_transcribator.services.jobs import (
+    ensure_user_storage_quota,
+    load_job_metadata,
+    save_job_metadata,
+    save_job_timing,
+)
 from audio_transcribator.services.summary import summarize
 from audio_transcribator.services.transcription import transcribe
 from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPTION_MODEL_ID
@@ -36,6 +41,19 @@ def save_metadata(
     transcription_model_id: str | None = None,
 ) -> None:
     save_job_metadata(job_dir, input_file, status, transcription_model_id=transcription_model_id)
+
+
+def enforce_download_quota(job_dir: Path, input_file: Path) -> None:
+    metadata = load_job_metadata(job_dir)
+    user_login = metadata.get("user_login")
+    if not user_login:
+        return
+
+    try:
+        ensure_user_storage_quota(user_login, 0)
+    except Exception:
+        input_file.unlink(missing_ok=True)
+        raise
 
 
 def process_file(
@@ -73,6 +91,7 @@ def process_url(
 
     try:
         input_file = timed_step(job_dir, "download", lambda: download_media(source_url, job_dir))
+        enforce_download_quota(job_dir, input_file)
         save_metadata(job_dir, input_file, status="running", transcription_model_id=transcription_model_id)
         audio_file = timed_step(job_dir, "prepare_audio", lambda: prepare_audio(input_file, job_dir))
         transcript = timed_step(

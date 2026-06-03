@@ -30,6 +30,7 @@ class Settings:
         self.third_party_cache_dir = Path(
             os.getenv("THIRD_PARTY_CACHE_DIR", self.model_cache_dir / "third_party")
         ).resolve()
+        self.user_storage_quota_bytes = int(os.getenv("USER_STORAGE_QUOTA_BYTES", str(10 * 1024 * 1024 * 1024)))
         self.api_token = os.getenv("API_TOKEN", "test-token")
         self.api_username = os.getenv("API_USERNAME", "admin")
         self.api_password = os.getenv("API_PASSWORD", "admin123")
