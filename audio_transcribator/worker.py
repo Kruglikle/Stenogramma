@@ -7,6 +7,7 @@ from typing import TypeVar
 from audio_transcribator.config import settings
 from audio_transcribator.services.audio import download_media, prepare_audio
 from audio_transcribator.services.diarization import diarize
+from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.jobs import (
     ensure_user_storage_quota,
     load_job_metadata,
@@ -54,6 +55,25 @@ def enforce_download_quota(job_dir: Path, input_file: Path) -> None:
     except Exception:
         input_file.unlink(missing_ok=True)
         raise
+
+
+def process_edit(job_dir: Path, editor_model: str | None = None) -> None:
+    transcript_file = job_dir / "stenogramma.txt"
+    lock_path = job_dir / "editing.lock"
+    if not transcript_file.exists():
+        raise FileNotFoundError("Transcript is not ready")
+
+    transcript = transcript_file.read_text(encoding="utf-8", errors="replace")
+    started = time.perf_counter()
+    try:
+        edit_transcript(transcript, job_dir, model=editor_model)
+        save_job_timing(job_dir, "editing", time.perf_counter() - started)
+    except Exception as exc:
+        save_job_timing(job_dir, "editing", time.perf_counter() - started, status="failed")
+        (job_dir / "editing_error.txt").write_text(str(exc), encoding="utf-8")
+        raise
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 def process_file(
@@ -115,9 +135,12 @@ def main() -> None:
     parser.add_argument("job_dir", type=Path)
     parser.add_argument("--source-url")
     parser.add_argument("--transcription-model", default=DEFAULT_TRANSCRIPTION_MODEL_ID)
+    parser.add_argument("--edit-model")
     args = parser.parse_args()
 
-    if args.source_url:
+    if str(args.input_file) == "edit-transcript":
+        process_edit(args.job_dir, editor_model=args.edit_model)
+    elif args.source_url:
         process_url(args.source_url, args.job_dir, transcription_model_id=args.transcription_model)
     else:
         process_file(args.input_file, args.job_dir, transcription_model_id=args.transcription_model)

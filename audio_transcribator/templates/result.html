@@ -80,24 +80,29 @@
             <h2>Стенограмма</h2>
             <p class="muted">Модель редактора: {{ editor_model }}</p>
           </div>
-          <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
-            <details>
-              <summary role="button">ИИ-редактура</summary>
-              <div class="editor-menu-list">
-                {% for group in editor_model_groups %}
-                  <div class="editor-menu-group">
-                    <div class="editor-menu-title">{{ group.label }}</div>
-                    {% for model in group.models %}
-                      <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
-                        {{ model.label }}
-                      </button>
-                    {% endfor %}
-                  </div>
-                {% endfor %}
-              </div>
-            </details>
-          </form>
+          {% if result.status in ["completed", "completed_without_summary"] %}
+            <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
+              <details>
+                <summary role="button">ИИ-редактура</summary>
+                <div class="editor-menu-list">
+                  {% for group in editor_model_groups %}
+                    <div class="editor-menu-group">
+                      <div class="editor-menu-title">{{ group.label }}</div>
+                      {% for model in group.models %}
+                        <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
+                          {{ model.label }}
+                        </button>
+                      {% endfor %}
+                    </div>
+                  {% endfor %}
+                </div>
+              </details>
+            </form>
+          {% endif %}
         </div>
+        {% if result.status not in ["completed", "completed_without_summary"] %}
+          <p class="muted editor-progress">ИИ-редактура станет доступна после завершения обработки.</p>
+        {% endif %}
         {% if result.editing_in_progress %}
           <p class="muted editor-progress">ИИ-редактура выполняется. Страница обновится автоматически.</p>
         {% endif %}

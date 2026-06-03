@@ -1,14 +1,15 @@
 import hashlib
 import hmac
+import subprocess
+import sys
 import time
 
-from fastapi import APIRouter, BackgroundTasks, Cookie, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Cookie, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
-from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.editor_models import list_editor_model_groups
 from audio_transcribator.services.jobs import (
     StorageQuotaExceeded,
@@ -17,7 +18,6 @@ from audio_transcribator.services.jobs import (
     get_job_file,
     list_user_jobs,
     load_job_metadata,
-    save_job_timing,
     start_uploaded_file,
     start_url,
     update_job_title,
@@ -63,18 +63,23 @@ def can_access_job(username: str, job_id: str) -> bool:
     return owner in {None, username}
 
 
-def run_edit_transcript_job(job_id: str, transcript: str, editor_model: str) -> None:
+def start_edit_transcript_process(job_id: str, editor_model: str) -> None:
     job_dir = settings.results_dir / job_id
-    lock_path = job_dir / "editing.lock"
-    started = time.perf_counter()
-    try:
-        edit_transcript(transcript, job_dir, model=editor_model)
-        save_job_timing(job_dir, "editing", time.perf_counter() - started)
-    except Exception as exc:
-        save_job_timing(job_dir, "editing", time.perf_counter() - started, status="failed")
-        (job_dir / "editing_error.txt").write_text(str(exc), encoding="utf-8")
-    finally:
-        lock_path.unlink(missing_ok=True)
+    command = [
+        sys.executable,
+        "process_audio_fast.py",
+        "edit-transcript",
+        str(job_dir),
+        "--edit-model",
+        editor_model,
+    ]
+    with open(job_dir / "run.log", "a", encoding="utf-8") as log_file:
+        subprocess.Popen(
+            command,
+            cwd=str(settings.base_dir),
+            stdout=log_file,
+            stderr=log_file,
+        )
 
 
 @router.get("", response_class=HTMLResponse)
@@ -258,7 +263,6 @@ def delete_result(
 @router.post("/result/{job_id}/edit", response_class=HTMLResponse)
 def edit_result_transcript(
     request: Request,
-    background_tasks: BackgroundTasks,
     job_id: str,
     editor_model: str = Form(default=""),
     ui_token: str | None = Cookie(default=None),
@@ -276,6 +280,8 @@ def edit_result_transcript(
     transcript = result.get("transcript")
     if not transcript:
         raise HTTPException(status_code=400, detail="Transcript is not ready")
+    if result.get("status") not in {"completed", "completed_without_summary"}:
+        raise HTTPException(status_code=409, detail="Editing is available after processing is complete")
 
     job_dir = settings.results_dir / job_id
     lock_path = job_dir / "editing.lock"
@@ -285,7 +291,7 @@ def edit_result_transcript(
     if not lock_path.exists():
         (job_dir / "editing_error.txt").unlink(missing_ok=True)
         lock_path.write_text(str(time.time()), encoding="utf-8")
-        background_tasks.add_task(run_edit_transcript_job, job_id, transcript, editor_model)
+        start_edit_transcript_process(job_id, editor_model)
 
     return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
 
