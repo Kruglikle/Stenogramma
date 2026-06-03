@@ -267,6 +267,8 @@ def build_job_result(job_id: str) -> dict:
     transcript_file = job_dir / "stenogramma.txt"
     legacy_transcript_file = job_dir / "transcript.txt"
     edited_transcript_file = job_dir / "edited_transcript.txt"
+    editing_error_file = job_dir / "editing_error.txt"
+    editing_lock_file = job_dir / "editing.lock"
     log_file = job_dir / "run.log"
 
     if not job_dir.exists():
@@ -295,6 +297,12 @@ def build_job_result(job_id: str) -> dict:
     if edited_transcript_file.exists():
         result["edited_transcript"] = edited_transcript_file.read_text(encoding="utf-8", errors="replace")
         result["editing_timing"] = result["timings"].get("by_step", {}).get("editing")
+
+    if editing_lock_file.exists():
+        result["editing_in_progress"] = True
+
+    if editing_error_file.exists():
+        result["editor_error"] = editing_error_file.read_text(encoding="utf-8", errors="replace")
 
     if summary_file.exists():
         result["summary"] = summary_file.read_text(encoding="utf-8", errors="replace")

@@ -98,8 +98,11 @@
             </details>
           </form>
         </div>
-        {% if editor_error %}
-          <p class="error editor-error">{{ editor_error }}</p>
+        {% if result.editing_in_progress %}
+          <p class="muted editor-progress">ИИ-редактура выполняется. Страница обновится автоматически.</p>
+        {% endif %}
+        {% if result.editor_error or editor_error %}
+          <p class="error editor-error">{{ result.editor_error or editor_error }}</p>
         {% endif %}
         <pre>{{ result.transcript }}</pre>
       </section>
@@ -173,9 +176,10 @@
     const jobId = root.dataset.jobId;
     const terminalStatuses = new Set(["completed", "completed_without_summary", "failed"]);
     let currentStatus = root.dataset.jobStatus;
+    let editingInProgress = Boolean(document.querySelector(".editor-progress"));
 
     const poll = async () => {
-      if (terminalStatuses.has(currentStatus)) return;
+      if (terminalStatuses.has(currentStatus) && !editingInProgress) return;
 
       try {
         const response = await fetch(`/ui/result/${jobId}`, {
@@ -205,6 +209,7 @@
         }
 
         currentStatus = nextRoot.dataset.jobStatus;
+        editingInProgress = Boolean(document.querySelector(".editor-progress"));
       } catch (error) {
         console.warn("Не удалось обновить результат", error);
       }
@@ -212,7 +217,7 @@
 
     const timer = window.setInterval(async () => {
       await poll();
-      if (terminalStatuses.has(currentStatus)) {
+      if (terminalStatuses.has(currentStatus) && !editingInProgress) {
         window.clearInterval(timer);
       }
     }, 5000);

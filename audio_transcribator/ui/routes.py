@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import time
 
-from fastapi import APIRouter, Cookie, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Cookie, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -61,6 +61,20 @@ def can_access_job(username: str, job_id: str) -> bool:
     metadata = load_job_metadata(settings.results_dir / job_id)
     owner = metadata.get("user_login")
     return owner in {None, username}
+
+
+def run_edit_transcript_job(job_id: str, transcript: str, editor_model: str) -> None:
+    job_dir = settings.results_dir / job_id
+    lock_path = job_dir / "editing.lock"
+    started = time.perf_counter()
+    try:
+        edit_transcript(transcript, job_dir, model=editor_model)
+        save_job_timing(job_dir, "editing", time.perf_counter() - started)
+    except Exception as exc:
+        save_job_timing(job_dir, "editing", time.perf_counter() - started, status="failed")
+        (job_dir / "editing_error.txt").write_text(str(exc), encoding="utf-8")
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 @router.get("", response_class=HTMLResponse)
@@ -244,6 +258,7 @@ def delete_result(
 @router.post("/result/{job_id}/edit", response_class=HTMLResponse)
 def edit_result_transcript(
     request: Request,
+    background_tasks: BackgroundTasks,
     job_id: str,
     editor_model: str = Form(default=""),
     ui_token: str | None = Cookie(default=None),
@@ -262,46 +277,17 @@ def edit_result_transcript(
     if not transcript:
         raise HTTPException(status_code=400, detail="Transcript is not ready")
 
-    try:
-        job_dir = settings.results_dir / job_id
-        started = time.perf_counter()
-        edit_transcript(transcript, job_dir, model=editor_model)
-        save_job_timing(job_dir, "editing", time.perf_counter() - started)
-        return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
-    except (ValueError, RuntimeError) as exc:
-        save_job_timing(settings.results_dir / job_id, "editing", time.perf_counter() - started, status="failed")
-        result = build_job_result(job_id)
-        downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
-        return templates.TemplateResponse(
-            request,
-            "result.html",
-            {
-                "result": result,
-                "downloads": downloads,
-                "editor_model": settings.editor_model,
-                "editor_model_groups": list_editor_model_groups(),
-                "editor_error": str(exc),
-                **build_cabinet_context(username),
-            },
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    except Exception as exc:
-        save_job_timing(settings.results_dir / job_id, "editing", time.perf_counter() - started, status="failed")
-        result = build_job_result(job_id)
-        downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
-        return templates.TemplateResponse(
-            request,
-            "result.html",
-            {
-                "result": result,
-                "downloads": downloads,
-                "editor_model": settings.editor_model,
-                "editor_model_groups": list_editor_model_groups(),
-                "editor_error": str(exc),
-                **build_cabinet_context(username),
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+    job_dir = settings.results_dir / job_id
+    lock_path = job_dir / "editing.lock"
+    if lock_path.exists() and time.time() - lock_path.stat().st_mtime > settings.ollama_request_timeout_seconds + 60:
+        lock_path.unlink(missing_ok=True)
+
+    if not lock_path.exists():
+        (job_dir / "editing_error.txt").unlink(missing_ok=True)
+        lock_path.write_text(str(time.time()), encoding="utf-8")
+        background_tasks.add_task(run_edit_transcript_job, job_id, transcript, editor_model)
+
+    return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/download/{job_id}/{filename}")
