@@ -1,35 +1,48 @@
 {% extends "base.html" %}
 
-{% block title %}Стенограмма | Стенограмма{% endblock %}
+{% block title %}Стенограмма | Загрузка{% endblock %}
 
 {% block content %}
-<section class="panel">
-  <div class="section-header">
-    <h1>Стенограмма</h1>
+<div class="workspace-layout">
+  <div class="workspace-main">
+    <section class="panel">
+      <div class="section-header">
+        <h1>Стенограмма</h1>
+      </div>
+      <form class="form upload-form" method="post" action="/ui/upload" enctype="multipart/form-data">
+        {% if error %}
+          <p class="error">{{ error }}</p>
+        {% endif %}
+        <label>
+          Название в кабинете
+          <input name="title" type="text" maxlength="160" placeholder="Например: созвон с клиентом">
+        </label>
+        <label>
+          Аудио или видеофайл
+          <input name="file" type="file" accept="audio/*,video/*">
+        </label>
+        <label>
+          Ссылка на видео или аудио
+          <input name="source_url" type="url" placeholder="https://example.com/video">
+        </label>
+        <label>
+          Модель распознавания
+          <select name="transcription_model" required>
+            {% for model in transcription_models %}
+              <option value="{{ model.id }}" {% if model.id == selected_transcription_model %}selected{% endif %}>
+                {{ model.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit">Запустить обработку</button>
+      </form>
+    </section>
   </div>
-  <form class="form upload-form" method="post" action="/ui/upload" enctype="multipart/form-data">
-    {% if error %}
-      <p class="error">{{ error }}</p>
-    {% endif %}
-    <label>
-      Аудио или видеофайл
-      <input name="file" type="file" accept="audio/*,video/*">
-    </label>
-    <label>
-      Ссылка на видео или аудио
-      <input name="source_url" type="url" placeholder="https://example.com/video">
-    </label>
-    <label>
-      Модель распознавания
-      <select name="transcription_model" required>
-        {% for model in transcription_models %}
-          <option value="{{ model.id }}" {% if model.id == selected_transcription_model %}selected{% endif %}>
-            {{ model.label }}
-          </option>
-        {% endfor %}
-      </select>
-    </label>
-    <button type="submit">Запустить обработку</button>
-  </form>
-</section>
+  {% include "_cabinet_history.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/cabinet.js?v=cabinet-1"></script>
 {% endblock %}

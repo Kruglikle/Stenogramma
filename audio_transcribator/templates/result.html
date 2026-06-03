@@ -1,144 +1,155 @@
 {% extends "base.html" %}
 
-{% block title %}Результат | Стенограмма{% endblock %}
+{% block title %}{{ result.title }} | Стенограмма{% endblock %}
 
 {% block content %}
-<section class="panel" data-job-id="{{ result.job_id }}" data-job-status="{{ result.status }}">
-  <div class="section-header">
-    <div>
-      <h1>Результат обработки</h1>
-      <p class="muted">ID задачи: {{ result.job_id }}</p>
-    </div>
-    <div class="actions">
-      <span id="job-status" class="status-badge status-{{ result.status }}">{{ result.status_label }}</span>
-      <a class="button-link secondary" href="/ui/result/{{ result.job_id }}">Обновить</a>
-      <a class="button-link" href="/ui/upload">Создать задачу</a>
-    </div>
-  </div>
-
-  <div id="downloads">
-    {% if downloads %}
-      <div class="downloads">
-        {% for filename in downloads %}
-          <a class="{% if filename == 'stenogramma.txt' or filename == 'edited_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
-            Скачать
-            {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
-          </a>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="muted status-note">Файлы появятся здесь по мере обработки.</p>
-    {% endif %}
-  </div>
-</section>
-
-<div id="timings-panel">
-  {% if result.timings and result.timings["items"] %}
-  <section class="panel timings-panel">
-    <div class="section-header compact-header">
-      <div>
-        <h2>Время обработки</h2>
-        {% if result.timings.total_duration %}
-          <p class="muted">Всего: {{ result.timings.total_duration }}</p>
-        {% endif %}
-      </div>
-    </div>
-    <div class="timings-list">
-      {% for timing in result.timings["items"] %}
-        <div class="timing-row">
-          <span>{{ timing.label }}</span>
-          <span class="timing-status timing-status-{{ timing.status }}">{{ timing.status_label }}</span>
-          <strong>{{ timing.duration }}</strong>
+<div class="workspace-layout">
+  <div class="workspace-main">
+    <section class="panel" data-job-id="{{ result.job_id }}" data-job-status="{{ result.status }}">
+      <div class="section-header">
+        <div>
+          <h1>{{ result.title }}</h1>
+          <p class="muted">ID задачи: {{ result.job_id }}</p>
         </div>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-</div>
-
-<div id="summary-panel">
-  {% if result.summary %}
-  <section class="panel">
-    <h2>Резюме</h2>
-    <pre>{{ result.summary }}</pre>
-  </section>
-  {% endif %}
-</div>
-
-<div id="transcript-panel">
-  {% if result.transcript %}
-  <section class="panel">
-    <div class="section-header compact-header">
-      <div>
-        <h2>Стенограмма</h2>
-        <p class="muted">Модель редактора: {{ editor_model }}</p>
+        <div class="actions">
+          <span id="job-status" class="status-badge status-{{ result.status }}">{{ result.status_label }}</span>
+          <a class="button-link secondary" href="/ui/result/{{ result.job_id }}">Обновить</a>
+          <a class="button-link" href="/ui/upload">Создать задачу</a>
+        </div>
       </div>
-      <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
-        <details>
-          <summary role="button">ИИ-редактура</summary>
-          <div class="editor-menu-list">
-            {% for group in editor_model_groups %}
-              <div class="editor-menu-group">
-                <div class="editor-menu-title">{{ group.label }}</div>
-                {% for model in group.models %}
-                  <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
-                    {{ model.label }}
-                  </button>
-                {% endfor %}
-              </div>
+
+      <form class="title-form" method="post" action="/ui/result/{{ result.job_id }}/title">
+        <input name="title" type="text" maxlength="160" value="{{ result.title }}" aria-label="Название файла">
+        <button class="secondary" type="submit">Сохранить название</button>
+      </form>
+
+      <div id="downloads">
+        {% if downloads %}
+          <div class="downloads">
+            {% for filename in downloads %}
+              <a class="{% if filename == 'stenogramma.txt' or filename == 'edited_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
+                Скачать
+                {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
+              </a>
             {% endfor %}
           </div>
-        </details>
-      </form>
-    </div>
-    {% if editor_error %}
-      <p class="error editor-error">{{ editor_error }}</p>
-    {% endif %}
-    <pre>{{ result.transcript }}</pre>
-  </section>
-  {% endif %}
-</div>
-
-<div id="edited-transcript-panel">
-  {% if result.edited_transcript %}
-  <section class="panel">
-    <div class="section-header compact-header">
-      <div>
-        <h2>ИИ-редактура</h2>
-        {% if result.editing_timing %}
-          <p class="muted">Время редакции: {{ result.editing_timing.duration }}</p>
+        {% else %}
+          <p class="muted status-note">Файлы появятся здесь по мере обработки.</p>
         {% endif %}
       </div>
-    </div>
-    <pre>{{ result.edited_transcript }}</pre>
-  </section>
-  {% endif %}
-</div>
+    </section>
 
-<div id="log-panel">
-  {% if result.log_tail %}
-  <section class="panel diagnostics-panel">
-    <div class="section-header compact-header">
-      <div>
-        <h2>Диагностика</h2>
-        <p class="muted">Технический журнал последних событий задачи.</p>
-      </div>
+    <div id="timings-panel">
+      {% if result.timings and result.timings["items"] %}
+      <section class="panel timings-panel">
+        <div class="section-header compact-header">
+          <div>
+            <h2>Время обработки</h2>
+            {% if result.timings.total_duration %}
+              <p class="muted">Всего: {{ result.timings.total_duration }}</p>
+            {% endif %}
+          </div>
+        </div>
+        <div class="timings-list">
+          {% for timing in result.timings["items"] %}
+            <div class="timing-row">
+              <span>{{ timing.label }}</span>
+              <span class="timing-status timing-status-{{ timing.status }}">{{ timing.status_label }}</span>
+              <strong>{{ timing.duration }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
     </div>
-    <details class="log-details" open>
-      <summary>Показать журнал обработки</summary>
-      <pre class="log-output">{{ result.log_tail }}</pre>
-    </details>
-  </section>
-  {% else %}
-  <section class="panel">
-    <h2>Статус</h2>
-    <p class="muted">Обработка ещё не завершена. Страница обновляется автоматически.</p>
-  </section>
-  {% endif %}
+
+    <div id="summary-panel">
+      {% if result.summary %}
+      <section class="panel">
+        <h2>Резюме</h2>
+        <pre>{{ result.summary }}</pre>
+      </section>
+      {% endif %}
+    </div>
+
+    <div id="transcript-panel">
+      {% if result.transcript %}
+      <section class="panel">
+        <div class="section-header compact-header">
+          <div>
+            <h2>Стенограмма</h2>
+            <p class="muted">Модель редактора: {{ editor_model }}</p>
+          </div>
+          <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
+            <details>
+              <summary role="button">ИИ-редактура</summary>
+              <div class="editor-menu-list">
+                {% for group in editor_model_groups %}
+                  <div class="editor-menu-group">
+                    <div class="editor-menu-title">{{ group.label }}</div>
+                    {% for model in group.models %}
+                      <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
+                        {{ model.label }}
+                      </button>
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+              </div>
+            </details>
+          </form>
+        </div>
+        {% if editor_error %}
+          <p class="error editor-error">{{ editor_error }}</p>
+        {% endif %}
+        <pre>{{ result.transcript }}</pre>
+      </section>
+      {% endif %}
+    </div>
+
+    <div id="edited-transcript-panel">
+      {% if result.edited_transcript %}
+      <section class="panel">
+        <div class="section-header compact-header">
+          <div>
+            <h2>ИИ-редактура</h2>
+            {% if result.editing_timing %}
+              <p class="muted">Время редакции: {{ result.editing_timing.duration }}</p>
+            {% endif %}
+          </div>
+        </div>
+        <pre>{{ result.edited_transcript }}</pre>
+      </section>
+      {% endif %}
+    </div>
+
+    <div id="log-panel">
+      {% if result.log_tail %}
+      <section class="panel diagnostics-panel">
+        <div class="section-header compact-header">
+          <div>
+            <h2>Диагностика</h2>
+            <p class="muted">Технический журнал последних событий задачи.</p>
+          </div>
+        </div>
+        <details class="log-details">
+          <summary>Показать журнал обработки</summary>
+          <pre class="log-output">{{ result.log_tail }}</pre>
+        </details>
+      </section>
+      {% else %}
+      <section class="panel">
+        <h2>Статус</h2>
+        <p class="muted">Обработка ещё не завершена. Страница обновляется автоматически.</p>
+      </section>
+      {% endif %}
+    </div>
+  </div>
+  {% include "_cabinet_history.html" %}
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/cabinet.js?v=cabinet-1"></script>
 <script>
   (() => {
     document.addEventListener("submit", (event) => {
@@ -185,7 +196,7 @@
           status.textContent = nextStatus.textContent;
         }
 
-        for (const id of ["downloads", "timings-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel"]) {
+        for (const id of ["downloads", "timings-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel", "cabinet-sidebar"]) {
           const current = document.getElementById(id);
           const next = doc.getElementById(id);
           if (current && next) {

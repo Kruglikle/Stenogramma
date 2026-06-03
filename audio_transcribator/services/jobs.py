@@ -61,18 +61,31 @@ def format_duration(seconds: float | int | None) -> str:
     return f"{seconds} сек"
 
 
+def clean_job_title(value: str | None, fallback: str) -> str:
+    title = " ".join((value or "").strip().split())
+    if not title:
+        title = fallback
+    return title[:160]
+
+
 def save_job_metadata(
     job_dir: Path,
     input_file: Path | str,
     status: str,
     transcription_model_id: str | None = None,
+    user_login: str | None = None,
+    title: str | None = None,
 ) -> None:
     existing_metadata = load_job_metadata(job_dir)
     started_at = existing_metadata.get("started_at") or utc_now_iso()
+    input_value = str(input_file)
+    fallback_title = input_value if input_value.startswith(("http://", "https://")) else Path(input_value).name
     metadata = {
         "job_id": job_dir.name,
         "status": status,
-        "input_file": str(input_file),
+        "input_file": input_value,
+        "title": clean_job_title(title or existing_metadata.get("title"), fallback_title),
+        "user_login": user_login or existing_metadata.get("user_login"),
         "started_at": started_at,
         "transcription_model": transcription_model_id
         or existing_metadata.get("transcription_model")
@@ -156,6 +169,8 @@ def build_job_result(job_id: str) -> dict:
 
     result = {
         "job_id": job_id,
+        "title": metadata.get("title") or job_id,
+        "user_login": metadata.get("user_login"),
         "files": files,
         "status": status,
         "status_label": STATUS_LABELS.get(status, status.title()),
@@ -178,6 +193,60 @@ def build_job_result(job_id: str) -> dict:
         result["log_tail"] = log_tail
 
     return result
+
+
+def choose_history_download(files: list[str]) -> str | None:
+    for filename in ("edited_transcript.txt", "stenogramma.txt", "summary.txt"):
+        if filename in files:
+            return filename
+    return None
+
+
+def list_user_jobs(user_login: str, limit: int = 40) -> list[dict]:
+    if not settings.results_dir.exists():
+        return []
+
+    jobs = []
+    for job_dir in settings.results_dir.iterdir():
+        if not job_dir.is_dir():
+            continue
+
+        metadata = load_job_metadata(job_dir)
+        if metadata.get("user_login") != user_login:
+            continue
+
+        files = metadata.get("files")
+        if not isinstance(files, list):
+            files = [p.name for p in job_dir.iterdir() if p.is_file()]
+
+        status = resolve_status(metadata, files, tail(job_dir / "run.log", lines=8))
+        jobs.append(
+            {
+                "job_id": job_dir.name,
+                "title": metadata.get("title") or job_dir.name,
+                "status": status,
+                "status_label": STATUS_LABELS.get(status, status.title()),
+                "started_at": metadata.get("started_at") or "",
+                "finished_at": metadata.get("finished_at") or "",
+                "download_file": choose_history_download(files),
+            }
+        )
+
+    jobs.sort(key=lambda item: item.get("started_at") or "", reverse=True)
+    return jobs[:limit]
+
+
+def update_job_title(job_id: str, title: str) -> dict:
+    job_dir = settings.results_dir / job_id
+    if not job_dir.exists():
+        raise FileNotFoundError("Job not found")
+
+    metadata = load_job_metadata(job_dir)
+    metadata["title"] = clean_job_title(title, metadata.get("title") or job_id)
+    metadata["files"] = sorted(p.name for p in job_dir.iterdir() if p.is_file())
+    with open(job_dir / "metadata.json", "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+    return metadata
 
 
 def build_timing_result(metadata: dict) -> dict:
@@ -236,7 +305,12 @@ def get_job_file(job_id: str, filename: str) -> Path:
     return file_path
 
 
-def start_uploaded_file(file: UploadFile, transcription_model_id: str | None = None) -> dict:
+def start_uploaded_file(
+    file: UploadFile,
+    transcription_model_id: str | None = None,
+    user_login: str | None = None,
+    title: str | None = None,
+) -> dict:
     transcription_model = resolve_transcription_model(transcription_model_id)
     job_id = str(uuid4())
     job_dir = settings.results_dir / job_id
@@ -249,7 +323,14 @@ def start_uploaded_file(file: UploadFile, transcription_model_id: str | None = N
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    save_job_metadata(job_dir, input_path, status="started", transcription_model_id=transcription_model["id"])
+    save_job_metadata(
+        job_dir,
+        input_path,
+        status="started",
+        transcription_model_id=transcription_model["id"],
+        user_login=user_login,
+        title=title or safe_filename,
+    )
     save_job_timing(job_dir, "upload", time.perf_counter() - started)
 
     log_path = job_dir / "run.log"
@@ -278,7 +359,12 @@ def start_uploaded_file(file: UploadFile, transcription_model_id: str | None = N
     }
 
 
-def start_url(source_url: str, transcription_model_id: str | None = None) -> dict:
+def start_url(
+    source_url: str,
+    transcription_model_id: str | None = None,
+    user_login: str | None = None,
+    title: str | None = None,
+) -> dict:
     parsed_url = urlparse(source_url)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
         raise ValueError("Only http/https media links are supported")
@@ -288,7 +374,14 @@ def start_url(source_url: str, transcription_model_id: str | None = None) -> dic
     job_dir = settings.results_dir / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    save_job_metadata(job_dir, source_url, status="started", transcription_model_id=transcription_model["id"])
+    save_job_metadata(
+        job_dir,
+        source_url,
+        status="started",
+        transcription_model_id=transcription_model["id"],
+        user_login=user_login,
+        title=title or source_url,
+    )
 
     log_path = job_dir / "run.log"
     command = [
