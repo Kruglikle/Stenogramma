@@ -27,9 +27,14 @@
             <a class="cabinet-title" href="/ui/result/{{ item.job_id }}">{{ item.title }}</a>
             <span class="cabinet-meta">{{ item.status_label }}</span>
           </div>
-          {% if item.download_file %}
-            <a class="cabinet-download" href="/ui/download/{{ item.job_id }}/{{ item.download_file }}" title="Скачать">↓</a>
-          {% endif %}
+          <div class="cabinet-item-actions">
+            {% if item.download_file %}
+              <a class="cabinet-icon-link" href="/ui/download/{{ item.job_id }}/{{ item.download_file }}" title="Скачать">↓</a>
+            {% endif %}
+            <form method="post" action="/ui/result/{{ item.job_id }}/delete" data-delete-form data-delete-title="{{ item.title }}">
+              <button class="cabinet-delete" type="submit" title="Удалить">×</button>
+            </form>
+          </div>
         </article>
       {% endfor %}
     </div>

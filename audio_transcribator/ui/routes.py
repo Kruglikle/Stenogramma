@@ -13,6 +13,7 @@ from audio_transcribator.services.editor_models import list_editor_model_groups
 from audio_transcribator.services.jobs import (
     StorageQuotaExceeded,
     build_job_result,
+    delete_job,
     get_job_file,
     list_user_jobs,
     load_job_metadata,
@@ -224,6 +225,20 @@ def rename_result(
         raise HTTPException(status_code=404, detail="Job not found")
     update_job_title(job_id, title)
     return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/result/{job_id}/delete")
+def delete_result(
+    job_id: str,
+    ui_token: str | None = Cookie(default=None),
+    ui_user: str | None = Cookie(default=None),
+    ui_user_sig: str | None = Cookie(default=None),
+):
+    username = require_ui_auth(ui_token, ui_user, ui_user_sig)
+    if not can_access_job(username, job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    delete_job(job_id)
+    return RedirectResponse(url="/ui/upload", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/result/{job_id}/edit", response_class=HTMLResponse)

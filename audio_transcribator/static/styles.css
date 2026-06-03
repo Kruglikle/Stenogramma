@@ -396,7 +396,7 @@ button:disabled {
 
 .cabinet-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 58px;
@@ -451,7 +451,18 @@ button:disabled {
   font-weight: 700;
 }
 
-.cabinet-download {
+.cabinet-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cabinet-item-actions form {
+  margin: 0;
+}
+
+.cabinet-icon-link,
+.cabinet-delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -464,11 +475,25 @@ button:disabled {
   font-size: 17px;
   font-weight: 900;
   text-decoration: none;
+  box-shadow: none;
 }
 
-.cabinet-download:hover {
+.cabinet-icon-link:hover {
   color: #ffffff;
   background: var(--accent);
+}
+
+.cabinet-delete {
+  min-height: 34px;
+  padding: 0;
+  color: var(--danger);
+  background: #fff6f4;
+  cursor: pointer;
+}
+
+.cabinet-delete:hover {
+  color: #ffffff;
+  background: var(--danger);
 }
 
 .cabinet-empty {

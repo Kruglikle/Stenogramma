@@ -359,6 +359,26 @@ def update_job_title(job_id: str, title: str) -> dict:
     return metadata
 
 
+def delete_job(job_id: str) -> None:
+    job_dir = settings.results_dir / job_id
+    if not job_dir.exists():
+        raise FileNotFoundError("Job not found")
+
+    metadata = load_job_metadata(job_dir)
+    input_file = metadata.get("input_file")
+    if input_file and not str(input_file).startswith(("http://", "https://")):
+        input_path = Path(input_file)
+        if not input_path.is_absolute():
+            input_path = (settings.base_dir / input_path).resolve()
+        else:
+            input_path = input_path.resolve()
+
+        if is_relative_to(input_path, settings.upload_dir):
+            input_path.unlink(missing_ok=True)
+
+    shutil.rmtree(job_dir)
+
+
 def build_timing_result(metadata: dict) -> dict:
     timings = metadata.get("timings") or {}
     ordered_steps = [
