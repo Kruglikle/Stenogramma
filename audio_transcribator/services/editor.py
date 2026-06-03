@@ -32,9 +32,17 @@ def edit_transcript(transcript: str, job_dir: Path, model: str | None = None) ->
         base_url = settings.ollama_base_url.rstrip("/")
         if not base_url.endswith("/v1"):
             base_url = f"{base_url}/v1"
-        client = OpenAI(api_key=settings.ollama_api_key, base_url=base_url)
+        client = OpenAI(
+            api_key=settings.ollama_api_key,
+            base_url=base_url,
+            timeout=settings.ollama_request_timeout_seconds,
+        )
     else:
-        client = OpenAI(api_key=settings.openrouter_api_key, base_url=settings.openrouter_base_url)
+        client = OpenAI(
+            api_key=settings.openrouter_api_key,
+            base_url=settings.openrouter_base_url,
+            timeout=settings.ollama_request_timeout_seconds,
+        )
 
     print(f"Editing transcript with {selected_model['model']}...")
     response = client.chat.completions.create(
