@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -377,6 +377,32 @@ def delete_job(job_id: str) -> None:
             input_path.unlink(missing_ok=True)
 
     shutil.rmtree(job_dir)
+
+
+def cleanup_expired_jobs() -> list[str]:
+    if settings.data_retention_days <= 0 or not settings.results_dir.exists():
+        return []
+
+    cutoff = datetime.now(UTC) - timedelta(days=settings.data_retention_days)
+    deleted_job_ids = []
+    for job_dir in settings.results_dir.iterdir():
+        if not job_dir.is_dir():
+            continue
+
+        metadata = load_job_metadata(job_dir)
+        created_at = parse_iso_datetime(metadata.get("started_at") or metadata.get("finished_at"))
+        if created_at is None:
+            created_at = datetime.fromtimestamp(job_dir.stat().st_mtime, tz=UTC)
+
+        if created_at > cutoff:
+            continue
+
+        delete_job(job_dir.name)
+        deleted_job_ids.append(job_dir.name)
+
+    if deleted_job_ids:
+        print(f"Deleted expired jobs: {', '.join(deleted_job_ids)}", flush=True)
+    return deleted_job_ids
 
 
 def build_timing_result(metadata: dict) -> dict:
