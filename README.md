@@ -10,13 +10,13 @@ FastAPI-сервис для обработки аудио- и видеофайл
 - `GET /transcription-models` — список доступных моделей транскрибации.
 - `GET /editor-models` — список доступных моделей ИИ-редактуры.
 - `GET /result/{job_id}` — получение результата обработки по ID задачи.
-- `POST /result/{job_id}/edit` — ИИ-редактура готовой стенограммы через OpenRouter или локальную Ollama-модель.
+- `POST /result/{job_id}/edit` — ИИ-редактура готовой стенограммы через локальную Ollama-модель.
 - `GET /download/{job_id}/{filename}` — скачивание отдельных файлов результата.
 - Token-based авторизация через `Authorization: Bearer <token>`.
 - Пользователи хранятся в PostgreSQL, пароль сохраняется в виде hash.
 - Поддержка аудио и видеоформатов, совместимых с `ffmpeg`.
-- Выбор модели транскрибации: локальная `faster-whisper` или OpenRouter STT модели из `audio_transcribator/transcription_models.json`.
-- Выбор модели ИИ-редактуры: локальные `gemma3:4b`, `qwen3:8b` через Ollama или `qwen/qwen3.6-35b-a3b` через OpenRouter.
+- Транскрибация через локальную `faster-whisper`.
+- Выбор модели ИИ-редактуры: локальные `gemma3:4b`, `qwen3:8b` через Ollama.
 - Резюме стенограммы генерируется локальной Ollama-моделью из `SUMMARY_MODEL`.
 - Diarization через Hugging Face/pyannote отключена.
 
@@ -169,8 +169,6 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_API_KEY=ollama
 SUMMARY_MODEL=qwen3:8b
 EDITOR_MODEL=qwen3:8b
-OPENROUTER_API_KEY=
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
 
 Если приложение запущено в Docker, обычно нужен один из вариантов:
@@ -185,7 +183,7 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 OLLAMA_BASE_URL=http://<server-ip>:11434
 ```
 
-Для OpenRouter-редактуры заполните `OPENROUTER_API_KEY`. Резюме всегда идет через локальную Ollama-модель из `SUMMARY_MODEL`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
+Резюме и ИИ-редактура идут через локальные Ollama-модели из `SUMMARY_MODEL` и `EDITOR_MODEL`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
 
 ## Настройки
 
@@ -193,7 +191,7 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 
 - `API_TOKEN`, `API_USERNAME`, `API_PASSWORD`, `ADD_USER_ADMIN_TOKEN`
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL`
-- `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `OLLAMA_BASE_URL`, `OLLAMA_API_KEY`, `SUMMARY_MODEL`, `EDITOR_MODEL`, `EDITOR_TEMPERATURE`
+- `OLLAMA_BASE_URL`, `OLLAMA_API_KEY`, `SUMMARY_MODEL`, `EDITOR_MODEL`, `EDITOR_TEMPERATURE`
 - `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`, `WHISPER_LOCAL_FILES_ONLY`
 - `TRANSCRIPTION_MODELS_FILE`
 - `ENABLE_DIARIZATION`

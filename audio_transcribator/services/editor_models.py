@@ -19,17 +19,6 @@ EDITOR_MODEL_GROUPS: list[dict[str, Any]] = [
             },
         ],
     },
-    {
-        "label": "OpenRouter",
-        "models": [
-            {
-                "id": "openrouter:qwen/qwen3.6-35b-a3b",
-                "provider": "openrouter",
-                "model": "qwen/qwen3.6-35b-a3b",
-                "label": "qwen/qwen3.6-35b-a3b",
-            },
-        ],
-    },
 ]
 
 
