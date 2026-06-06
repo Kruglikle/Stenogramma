@@ -17,8 +17,8 @@ FastAPI-сервис для обработки аудио- и видеофайл
 - Поддержка аудио и видеоформатов, совместимых с `ffmpeg`.
 - Транскрибация через локальную `faster-whisper`.
 - Выбор модели ИИ-редактуры: локальные `gemma3:4b`, `qwen3:8b` через Ollama.
-- Резюме стенограммы генерируется локальной Ollama-моделью из `SUMMARY_MODEL`.
-- Diarization через Hugging Face/pyannote отключена.
+- Резюме стенограммы опционально генерируется локальной Ollama-моделью из `SUMMARY_MODEL`.
+- Диаризация опциональна и выполняется локально через `pyannote.audio` speaker-diarization 3.1; модели скачиваются один раз и затем используются из локального каталога.
 
 ## Запуск локально
 
@@ -89,7 +89,7 @@ audio_transcribator/
     transcription.py     # faster-whisper
     summary.py           # local Ollama summary
     editor.py            # ИИ-редактура стенограммы
-    diarization.py       # diarization stub
+    diarization.py       # local pyannote diarization
   utils/files.py         # файловые helper'ы
   worker.py              # CLI/background pipeline
 app.py                   # совместимый ASGI entrypoint
@@ -185,6 +185,42 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 
 Резюме и ИИ-редактура идут через локальные Ollama-модели из `SUMMARY_MODEL` и `EDITOR_MODEL`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
 
+## Локальная диаризация pyannote
+
+Диаризация остается опциональной: глобально она включается через `ENABLE_DIARIZATION=true`, а для каждой задачи отдельно через чекбокс `Включить диаризацию`.
+
+Один раз скачайте модели на сервере. Для скачивания нужен Hugging Face token с принятыми условиями моделей `pyannote/speaker-diarization-3.1`, `pyannote/segmentation-3.0` и `pyannote/wespeaker-voxceleb-resnet34-LM`. После скачивания token приложению в runtime не нужен.
+
+```bash
+source .venv/bin/activate
+python --version
+pip install -r requirements.txt
+export HF_TOKEN=hf_...
+python scripts/download_pyannote_models.py --target-dir data/model_cache/pyannote
+```
+
+Для pyannote 3.1 используйте Python 3.11 и совместимую связку `torch==2.1.2`/`torchaudio==2.1.2` из `requirements.txt`. Dockerfile уже использует `python:3.11-slim`.
+
+В `.env`:
+
+```env
+ENABLE_DIARIZATION=true
+PYANNOTE_MODEL_DIR=/app/data/model_cache/pyannote
+PYANNOTE_PIPELINE_CONFIG=/app/data/model_cache/pyannote/speaker-diarization-3.1/config.yaml
+PYANNOTE_SEGMENTATION_MODEL=/app/data/model_cache/pyannote/segmentation-3.0
+PYANNOTE_EMBEDDING_MODEL=/app/data/model_cache/pyannote/wespeaker-voxceleb-resnet34-LM
+PYANNOTE_DEVICE=auto
+DIARIZATION_SPEAKERS=0
+DIARIZATION_MIN_SPEAKERS=0
+DIARIZATION_MAX_SPEAKERS=4
+```
+
+Для native-запуска вне Docker замените `/app/data/...` на абсолютный путь вашего проекта, например `/opt/audio-transcribator/data/...`.
+
+`DIARIZATION_SPEAKERS=0` включает автооценку числа спикеров. Если известно точное число участников, лучше указать его явно, например `DIARIZATION_SPEAKERS=2`. При явно заданном числе `DIARIZATION_MIN_SPEAKERS` и `DIARIZATION_MAX_SPEAKERS` не используются.
+
+В runtime pipeline принудительно работает через локальный `config.yaml`; он указывает на локальные директории segmentation и embedding моделей. Скрытые обращения к Hugging Face отключаются через `HF_HUB_OFFLINE=1` при загрузке pyannote pipeline.
+
 ## Настройки
 
 Основные переменные окружения задаются в `.env`:
@@ -196,5 +232,6 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 - `OLLAMA_BASE_URL`, `OLLAMA_API_KEY`, `SUMMARY_MODEL`, `SUMMARY_CHUNK_CHARS`, `EDITOR_MODEL`, `EDITOR_CHUNK_CHARS`, `EDITOR_TEMPERATURE`
 - `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`, `WHISPER_LOCAL_FILES_ONLY`
 - `TRANSCRIPTION_MODELS_FILE`
-- `ENABLE_DIARIZATION`
+- `ENABLE_DIARIZATION`, `PYANNOTE_MODEL_DIR`, `PYANNOTE_PIPELINE_CONFIG`, `PYANNOTE_SEGMENTATION_MODEL`, `PYANNOTE_EMBEDDING_MODEL`, `PYANNOTE_DEVICE`
+- `DIARIZATION_SPEAKERS`, `DIARIZATION_MIN_SPEAKERS`, `DIARIZATION_MAX_SPEAKERS`
 

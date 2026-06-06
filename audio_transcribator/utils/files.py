@@ -8,6 +8,10 @@ ALLOWED_DOWNLOADS = {
     "run.log",
     "work_audio.wav",
     "diarization.txt",
+    "diarization.json",
+    "diarization.rttm",
+    "diarized_transcript.txt",
+    "transcript_segments.json",
 }
 
 

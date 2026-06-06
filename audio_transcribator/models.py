@@ -14,3 +14,5 @@ class AddUserRequest(BaseModel):
 class ProcessUrlRequest(BaseModel):
     source_url: str
     transcription_model: str | None = None
+    enable_summary: bool = True
+    enable_diarization: bool = False

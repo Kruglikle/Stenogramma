@@ -40,8 +40,35 @@ def save_metadata(
     input_file: Path | str,
     status: str = "completed",
     transcription_model_id: str | None = None,
+    enable_summary: bool | None = None,
+    enable_diarization: bool | None = None,
 ) -> None:
-    save_job_metadata(job_dir, input_file, status, transcription_model_id=transcription_model_id)
+    save_job_metadata(
+        job_dir,
+        input_file,
+        status,
+        transcription_model_id=transcription_model_id,
+        enable_summary=enable_summary,
+        enable_diarization=enable_diarization,
+    )
+
+
+def maybe_diarize(audio_file: Path, job_dir: Path, enable_diarization: bool) -> None:
+    if not enable_diarization:
+        return
+    if not settings.enable_diarization:
+        print("Diarization was requested but ENABLE_DIARIZATION is disabled.")
+        save_job_timing(job_dir, "diarization", 0, status="skipped")
+        return
+    timed_step(job_dir, "diarization", lambda: diarize(audio_file, job_dir), skipped=lambda result: not result)
+
+
+def maybe_summarize(transcript: str, job_dir: Path, enable_summary: bool) -> None:
+    if not enable_summary:
+        print("Summary was disabled for this job.")
+        save_job_timing(job_dir, "summary", 0, status="skipped")
+        return
+    timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
 
 
 def enforce_download_quota(job_dir: Path, input_file: Path) -> None:
@@ -80,9 +107,18 @@ def process_file(
     input_file: Path,
     job_dir: Path,
     transcription_model_id: str = DEFAULT_TRANSCRIPTION_MODEL_ID,
+    enable_summary: bool = True,
+    enable_diarization: bool = False,
 ) -> None:
     job_dir.mkdir(parents=True, exist_ok=True)
-    save_metadata(job_dir, input_file, status="running", transcription_model_id=transcription_model_id)
+    save_metadata(
+        job_dir,
+        input_file,
+        status="running",
+        transcription_model_id=transcription_model_id,
+        enable_summary=enable_summary,
+        enable_diarization=enable_diarization,
+    )
 
     try:
         audio_file = timed_step(job_dir, "prepare_audio", lambda: prepare_audio(input_file, job_dir))
@@ -91,9 +127,8 @@ def process_file(
             "transcription",
             lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
         )
-        if settings.enable_diarization:
-            timed_step(job_dir, "diarization", lambda: diarize(audio_file, job_dir), skipped=lambda result: not result)
-        timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
+        maybe_diarize(audio_file, job_dir, enable_diarization)
+        maybe_summarize(transcript, job_dir, enable_summary)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
         print("Processing completed.")
     except Exception:
@@ -105,9 +140,18 @@ def process_url(
     source_url: str,
     job_dir: Path,
     transcription_model_id: str = DEFAULT_TRANSCRIPTION_MODEL_ID,
+    enable_summary: bool = True,
+    enable_diarization: bool = False,
 ) -> None:
     job_dir.mkdir(parents=True, exist_ok=True)
-    save_metadata(job_dir, source_url, status="running", transcription_model_id=transcription_model_id)
+    save_metadata(
+        job_dir,
+        source_url,
+        status="running",
+        transcription_model_id=transcription_model_id,
+        enable_summary=enable_summary,
+        enable_diarization=enable_diarization,
+    )
 
     try:
         input_file = timed_step(job_dir, "download", lambda: download_media(source_url, job_dir))
@@ -119,9 +163,8 @@ def process_url(
             "transcription",
             lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
         )
-        if settings.enable_diarization:
-            timed_step(job_dir, "diarization", lambda: diarize(audio_file, job_dir), skipped=lambda result: not result)
-        timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
+        maybe_diarize(audio_file, job_dir, enable_diarization)
+        maybe_summarize(transcript, job_dir, enable_summary)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
         print("Processing completed.")
     except Exception:
@@ -135,15 +178,29 @@ def main() -> None:
     parser.add_argument("job_dir", type=Path)
     parser.add_argument("--source-url")
     parser.add_argument("--transcription-model", default=DEFAULT_TRANSCRIPTION_MODEL_ID)
+    parser.add_argument("--no-summary", action="store_true")
+    parser.add_argument("--diarization", action="store_true")
     parser.add_argument("--edit-model")
     args = parser.parse_args()
 
     if str(args.input_file) == "edit-transcript":
         process_edit(args.job_dir, editor_model=args.edit_model)
     elif args.source_url:
-        process_url(args.source_url, args.job_dir, transcription_model_id=args.transcription_model)
+        process_url(
+            args.source_url,
+            args.job_dir,
+            transcription_model_id=args.transcription_model,
+            enable_summary=not args.no_summary,
+            enable_diarization=args.diarization,
+        )
     else:
-        process_file(args.input_file, args.job_dir, transcription_model_id=args.transcription_model)
+        process_file(
+            args.input_file,
+            args.job_dir,
+            transcription_model_id=args.transcription_model,
+            enable_summary=not args.no_summary,
+            enable_diarization=args.diarization,
+        )
 
 
 if __name__ == "__main__":

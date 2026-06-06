@@ -163,6 +163,8 @@ def upload_file(
     source_url: str = Form(default=""),
     title: str = Form(default=""),
     transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
+    enable_summary: bool = Form(default=False),
+    enable_diarization: bool = Form(default=False),
     ui_token: str | None = Cookie(default=None),
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
@@ -176,6 +178,8 @@ def upload_file(
                 transcription_model_id=transcription_model,
                 user_login=username,
                 title=title,
+                enable_summary=enable_summary,
+                enable_diarization=enable_diarization,
             )
         elif clean_source_url:
             result = start_url(
@@ -183,6 +187,8 @@ def upload_file(
                 transcription_model_id=transcription_model,
                 user_login=username,
                 title=title,
+                enable_summary=enable_summary,
+                enable_diarization=enable_diarization,
             )
         else:
             raise ValueError("Загрузите файл или вставьте ссылку на медиа")

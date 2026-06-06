@@ -6,12 +6,12 @@
 <div class="workspace-layout">
   <div class="workspace-main">
     <section class="panel" data-job-id="{{ result.job_id }}" data-job-status="{{ result.status }}">
-      <div class="section-header">
-        <div>
+      <div class="section-header result-header">
+        <div class="result-title-block">
           <h1>{{ result.title }}</h1>
           <p class="muted">ID задачи: {{ result.job_id }}</p>
         </div>
-        <div class="actions">
+        <div class="actions result-actions">
           <span id="job-status" class="status-badge status-{{ result.status }}">{{ result.status_label }}</span>
           <a class="button-link secondary" href="/ui/result/{{ result.job_id }}">Обновить</a>
           <a class="button-link" href="/ui/upload">Создать задачу</a>
@@ -27,9 +27,9 @@
         {% if downloads %}
           <div class="downloads">
             {% for filename in downloads %}
-              <a class="{% if filename == 'stenogramma.txt' or filename == 'edited_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
+              <a class="{% if filename == 'stenogramma.txt' or filename == 'diarized_transcript.txt' or filename == 'edited_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
                 Скачать
-                {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
+                {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'diarized_transcript.txt' %}стенограмму со спикерами{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'diarization.txt' %}диаризацию{% elif filename == 'diarization.json' %}диаризацию JSON{% elif filename == 'diarization.rttm' %}диаризацию RTTM{% elif filename == 'transcript_segments.json' %}сегменты JSON{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
               </a>
             {% endfor %}
           </div>
@@ -59,6 +59,21 @@
             </div>
           {% endfor %}
         </div>
+      </section>
+      {% endif %}
+    </div>
+
+    <div id="diarization-panel">
+      {% if result.diarized_transcript %}
+      <section class="panel">
+        <h2>Стенограмма со спикерами</h2>
+        <pre>{{ result.diarized_transcript }}</pre>
+      </section>
+      {% endif %}
+      {% if result.diarization %}
+      <section class="panel">
+        <h2>Диаризация</h2>
+        <pre>{{ result.diarization }}</pre>
       </section>
       {% endif %}
     </div>
@@ -205,7 +220,7 @@
           status.textContent = nextStatus.textContent;
         }
 
-        for (const id of ["downloads", "timings-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel", "cabinet-sidebar"]) {
+        for (const id of ["downloads", "timings-panel", "diarization-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel", "cabinet-sidebar"]) {
           const current = document.getElementById(id);
           const next = doc.getElementById(id);
           if (current && next) {

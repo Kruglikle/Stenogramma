@@ -42,7 +42,7 @@ TIMING_STATUS_LABELS = {
 }
 
 
-def utc_now_iso() -> str:
+def utc_now_iso() -> str: 
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
@@ -185,6 +185,8 @@ def save_job_metadata(
     transcription_model_id: str | None = None,
     user_login: str | None = None,
     title: str | None = None,
+    enable_summary: bool | None = None,
+    enable_diarization: bool | None = None,
 ) -> None:
     existing_metadata = load_job_metadata(job_dir)
     started_at = existing_metadata.get("started_at") or utc_now_iso()
@@ -200,6 +202,10 @@ def save_job_metadata(
         "transcription_model": transcription_model_id
         or existing_metadata.get("transcription_model")
         or DEFAULT_TRANSCRIPTION_MODEL_ID,
+        "enable_summary": enable_summary if enable_summary is not None else existing_metadata.get("enable_summary", True),
+        "enable_diarization": enable_diarization
+        if enable_diarization is not None
+        else existing_metadata.get("enable_diarization", False),
         "timings": existing_metadata.get("timings", {}),
         "files": sorted(p.name for p in job_dir.iterdir() if p.is_file()),
     }
@@ -250,7 +256,7 @@ def load_job_metadata(job_dir: Path) -> dict:
 
 def resolve_status(metadata: dict, files: list[str], log_tail: str) -> str:
     status = metadata.get("status")
-    if status == "completed" and "summary.txt" not in files:
+    if status == "completed" and metadata.get("enable_summary", True) and "summary.txt" not in files:
         return "completed_without_summary"
     if status in STATUS_LABELS:
         return status
@@ -264,6 +270,8 @@ def resolve_status(metadata: dict, files: list[str], log_tail: str) -> str:
 def build_job_result(job_id: str) -> dict:
     job_dir = settings.results_dir / job_id
     summary_file = job_dir / "summary.txt"
+    diarization_file = job_dir / "diarization.txt"
+    diarized_transcript_file = job_dir / "diarized_transcript.txt"
     transcript_file = job_dir / "stenogramma.txt"
     legacy_transcript_file = job_dir / "transcript.txt"
     edited_transcript_file = job_dir / "edited_transcript.txt"
@@ -286,6 +294,8 @@ def build_job_result(job_id: str) -> dict:
         "files": files,
         "status": status,
         "status_label": STATUS_LABELS.get(status, status.title()),
+        "enable_summary": metadata.get("enable_summary", True),
+        "enable_diarization": metadata.get("enable_diarization", False),
         "timings": build_timing_result(metadata),
     }
 
@@ -307,6 +317,12 @@ def build_job_result(job_id: str) -> dict:
     if summary_file.exists():
         result["summary"] = summary_file.read_text(encoding="utf-8", errors="replace")
 
+    if diarization_file.exists():
+        result["diarization"] = diarization_file.read_text(encoding="utf-8", errors="replace")
+
+    if diarized_transcript_file.exists():
+        result["diarized_transcript"] = diarized_transcript_file.read_text(encoding="utf-8", errors="replace")
+
     if log_tail:
         result["log_tail"] = log_tail
 
@@ -314,7 +330,7 @@ def build_job_result(job_id: str) -> dict:
 
 
 def choose_history_download(files: list[str]) -> str | None:
-    for filename in ("edited_transcript.txt", "stenogramma.txt", "summary.txt"):
+    for filename in ("edited_transcript.txt", "diarized_transcript.txt", "stenogramma.txt", "summary.txt"):
         if filename in files:
             return filename
     return None
@@ -474,6 +490,8 @@ def start_uploaded_file(
     transcription_model_id: str | None = None,
     user_login: str | None = None,
     title: str | None = None,
+    enable_summary: bool = True,
+    enable_diarization: bool = False,
 ) -> dict:
     transcription_model = resolve_transcription_model(transcription_model_id)
     upload_size = get_upload_size(file)
@@ -496,6 +514,8 @@ def start_uploaded_file(
         transcription_model_id=transcription_model["id"],
         user_login=user_login,
         title=title or safe_filename,
+        enable_summary=enable_summary,
+        enable_diarization=enable_diarization,
     )
     save_job_timing(job_dir, "upload", time.perf_counter() - started)
 
@@ -508,6 +528,10 @@ def start_uploaded_file(
         "--transcription-model",
         transcription_model["id"],
     ]
+    if not enable_summary:
+        command.append("--no-summary")
+    if enable_diarization:
+        command.append("--diarization")
 
     with open(log_path, "w", encoding="utf-8") as log_file:
         subprocess.Popen(
@@ -521,6 +545,8 @@ def start_uploaded_file(
         "status": "started",
         "job_id": job_id,
         "transcription_model": transcription_model["id"],
+        "enable_summary": enable_summary,
+        "enable_diarization": enable_diarization,
         "message": "File uploaded and processing started",
     }
 
@@ -530,6 +556,8 @@ def start_url(
     transcription_model_id: str | None = None,
     user_login: str | None = None,
     title: str | None = None,
+    enable_summary: bool = True,
+    enable_diarization: bool = False,
 ) -> dict:
     parsed_url = urlparse(source_url)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
@@ -548,6 +576,8 @@ def start_url(
         transcription_model_id=transcription_model["id"],
         user_login=user_login,
         title=title or source_url,
+        enable_summary=enable_summary,
+        enable_diarization=enable_diarization,
     )
 
     log_path = job_dir / "run.log"
@@ -561,6 +591,10 @@ def start_url(
         "--transcription-model",
         transcription_model["id"],
     ]
+    if not enable_summary:
+        command.append("--no-summary")
+    if enable_diarization:
+        command.append("--diarization")
 
     with open(log_path, "w", encoding="utf-8") as log_file:
         subprocess.Popen(
@@ -574,5 +608,7 @@ def start_url(
         "status": "started",
         "job_id": job_id,
         "transcription_model": transcription_model["id"],
+        "enable_summary": enable_summary,
+        "enable_diarization": enable_diarization,
         "message": "Media URL queued and processing started",
     }

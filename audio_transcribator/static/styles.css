@@ -107,6 +107,23 @@ body {
   gap: 16px;
 }
 
+.result-header {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.result-title-block {
+  min-width: 0;
+}
+
+.result-title-block h1 {
+  overflow-wrap: anywhere;
+}
+
+.result-actions {
+  justify-content: flex-start;
+}
+
 .compact-header {
   margin-bottom: 12px;
 }
@@ -137,6 +154,20 @@ label {
   color: var(--muted);
   font-size: 14px;
   font-weight: 650;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.checkbox-field input {
+  flex: 0 0 auto;
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--accent);
 }
 
 input,

@@ -78,11 +78,31 @@ class Settings:
         self.configure_third_party_cache()
 
         self.enable_diarization = os.getenv("ENABLE_DIARIZATION", "false").lower() in {"1", "true", "yes"}
+        self.diarization_speakers = int(os.getenv("DIARIZATION_SPEAKERS", "0"))
+        self.diarization_min_speakers = int(os.getenv("DIARIZATION_MIN_SPEAKERS", "0"))
+        self.diarization_max_speakers = int(os.getenv("DIARIZATION_MAX_SPEAKERS", "4"))
+        self.pyannote_model_dir = Path(
+            os.getenv("PYANNOTE_MODEL_DIR", self.model_cache_dir / "pyannote")
+        ).resolve()
+        self.pyannote_pipeline_config = Path(
+            os.getenv(
+                "PYANNOTE_PIPELINE_CONFIG",
+                self.pyannote_model_dir / "speaker-diarization-3.1" / "config.yaml",
+            )
+        ).resolve()
+        self.pyannote_segmentation_model = Path(
+            os.getenv("PYANNOTE_SEGMENTATION_MODEL", self.pyannote_model_dir / "segmentation-3.0")
+        ).resolve()
+        self.pyannote_embedding_model = Path(
+            os.getenv("PYANNOTE_EMBEDDING_MODEL", self.pyannote_model_dir / "wespeaker-voxceleb-resnet34-LM")
+        ).resolve()
+        self.pyannote_device = os.getenv("PYANNOTE_DEVICE", "auto").strip().lower()
 
     def configure_third_party_cache(self) -> None:
         os.environ.setdefault("HF_HOME", str(self.third_party_cache_dir / "huggingface"))
         os.environ.setdefault("HF_HUB_CACHE", str(self.third_party_cache_dir / "huggingface" / "hub"))
         os.environ.setdefault("TRANSFORMERS_CACHE", str(self.third_party_cache_dir / "transformers"))
+        os.environ.setdefault("MPLCONFIGDIR", str(self.third_party_cache_dir / "matplotlib"))
         os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
         if self.whisper_local_files_only:
             os.environ.setdefault("HF_HUB_OFFLINE", "1")
@@ -92,6 +112,7 @@ class Settings:
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.model_cache_dir.mkdir(parents=True, exist_ok=True)
         self.third_party_cache_dir.mkdir(parents=True, exist_ok=True)
+        self.pyannote_model_dir.mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings()

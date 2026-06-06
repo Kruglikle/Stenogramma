@@ -75,6 +75,13 @@ def _save_transcript_file(job_dir: Path, transcript: str) -> None:
     write_text_atomic(job_dir / "stenogramma.txt", transcript)
 
 
+def _save_transcript_segments(job_dir: Path, segments: list[dict]) -> None:
+    (job_dir / "transcript_segments.json").write_text(
+        json.dumps(segments, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def transcribe_local(audio_file: Path, job_dir: Path) -> str:
     from faster_whisper import WhisperModel
 
@@ -92,15 +99,25 @@ def transcribe_local(audio_file: Path, job_dir: Path) -> str:
         task="transcribe",
     )
     segment_texts = []
+    transcript_segments = []
     for segment in segments:
         text = normalize_transcript_text(segment.text)
         if text:
             print(text, flush=True)
             segment_texts.append(text)
+            transcript_segments.append(
+                {
+                    "start": float(segment.start),
+                    "end": float(segment.end),
+                    "text": text,
+                }
+            )
             _save_transcript_file(job_dir, normalize_transcript_text(" ".join(segment_texts)))
+            _save_transcript_segments(job_dir, transcript_segments)
 
     transcript = normalize_transcript_text(" ".join(segment_texts))
     _save_transcript_file(job_dir, transcript)
+    _save_transcript_segments(job_dir, transcript_segments)
 
     return transcript
 

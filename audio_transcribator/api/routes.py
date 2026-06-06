@@ -53,12 +53,19 @@ def root():
 async def process_file(
     file: UploadFile = File(...),
     transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
+    enable_summary: bool = Form(True),
+    enable_diarization: bool = Form(False),
     authorization: str | None = Header(default=None),
 ):
     check_auth(authorization)
 
     try:
-        return start_uploaded_file(file, transcription_model_id=transcription_model)
+        return start_uploaded_file(
+            file,
+            transcription_model_id=transcription_model,
+            enable_summary=enable_summary,
+            enable_diarization=enable_diarization,
+        )
     except TranscriptionModelError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -71,7 +78,12 @@ def process_url(
     check_auth(authorization)
 
     try:
-        return start_url(data.source_url, transcription_model_id=data.transcription_model)
+        return start_url(
+            data.source_url,
+            transcription_model_id=data.transcription_model,
+            enable_summary=data.enable_summary,
+            enable_diarization=data.enable_diarization,
+        )
     except (TranscriptionModelError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
