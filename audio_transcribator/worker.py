@@ -84,8 +84,8 @@ def enforce_download_quota(job_dir: Path, input_file: Path) -> None:
         raise
 
 
-def process_edit(job_dir: Path, editor_model: str | None = None) -> None:
-    transcript_file = job_dir / "stenogramma.txt"
+def process_edit(job_dir: Path, editor_model: str | None = None, transcript_source: str = "transcript") -> None:
+    transcript_file = job_dir / "diarized_transcript.txt" if transcript_source == "diarized" else job_dir / "stenogramma.txt"
     lock_path = job_dir / "editing.lock"
     if not transcript_file.exists():
         raise FileNotFoundError("Transcript is not ready")
@@ -181,10 +181,11 @@ def main() -> None:
     parser.add_argument("--no-summary", action="store_true")
     parser.add_argument("--diarization", action="store_true")
     parser.add_argument("--edit-model")
+    parser.add_argument("--edit-source", default="transcript")
     args = parser.parse_args()
 
     if str(args.input_file) == "edit-transcript":
-        process_edit(args.job_dir, editor_model=args.edit_model)
+        process_edit(args.job_dir, editor_model=args.edit_model, transcript_source=args.edit_source)
     elif args.source_url:
         process_url(
             args.source_url,

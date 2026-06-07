@@ -2,6 +2,27 @@
 
 {% block title %}{{ result.title }} | Стенограмма{% endblock %}
 
+{% macro editor_menu(source) -%}
+  <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
+    <input type="hidden" name="transcript_source" value="{{ source }}">
+    <details>
+      <summary role="button">ИИ-редактура</summary>
+      <div class="editor-menu-list">
+        {% for group in editor_model_groups %}
+          <div class="editor-menu-group">
+            <div class="editor-menu-title">{{ group.label }}</div>
+            {% for model in group.models %}
+              <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
+                {{ model.label }}
+              </button>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  </form>
+{%- endmacro %}
+
 {% block content %}
 <div class="workspace-layout">
   <div class="workspace-main">
@@ -29,7 +50,7 @@
             {% for filename in downloads %}
               <a class="{% if filename == 'stenogramma.txt' or filename == 'diarized_transcript.txt' or filename == 'edited_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
                 Скачать
-                {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'diarized_transcript.txt' %}стенограмму со спикерами{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'diarization.txt' %}диаризацию{% elif filename == 'diarization.json' %}диаризацию JSON{% elif filename == 'diarization.rttm' %}диаризацию RTTM{% elif filename == 'transcript_segments.json' %}сегменты JSON{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
+                {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'diarized_transcript.txt' %}стенограмму со спикерами{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
               </a>
             {% endfor %}
           </div>
@@ -66,14 +87,19 @@
     <div id="diarization-panel">
       {% if result.diarized_transcript %}
       <section class="panel">
-        <h2>Стенограмма со спикерами</h2>
+        <div class="section-header compact-header">
+          <div>
+            <h2>Стенограмма со спикерами</h2>
+            <p class="muted">Модель редактора: {{ editor_model }}</p>
+          </div>
+          <div class="actions panel-actions">
+            <a class="button-link secondary" href="/ui/download/{{ result.job_id }}/diarized_transcript.txt">Скачать стенограмму со спикерами</a>
+            {% if result.status in ["completed", "completed_without_summary"] %}
+              {{ editor_menu("diarized") }}
+            {% endif %}
+          </div>
+        </div>
         <pre>{{ result.diarized_transcript }}</pre>
-      </section>
-      {% endif %}
-      {% if result.diarization %}
-      <section class="panel">
-        <h2>Диаризация</h2>
-        <pre>{{ result.diarization }}</pre>
       </section>
       {% endif %}
     </div>
@@ -95,25 +121,12 @@
             <h2>Стенограмма</h2>
             <p class="muted">Модель редактора: {{ editor_model }}</p>
           </div>
-          {% if result.status in ["completed", "completed_without_summary"] %}
-            <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
-              <details>
-                <summary role="button">ИИ-редактура</summary>
-                <div class="editor-menu-list">
-                  {% for group in editor_model_groups %}
-                    <div class="editor-menu-group">
-                      <div class="editor-menu-title">{{ group.label }}</div>
-                      {% for model in group.models %}
-                        <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
-                          {{ model.label }}
-                        </button>
-                      {% endfor %}
-                    </div>
-                  {% endfor %}
-                </div>
-              </details>
-            </form>
-          {% endif %}
+          <div class="actions panel-actions">
+            <a class="button-link secondary" href="/ui/download/{{ result.job_id }}/stenogramma.txt">Скачать стенограмму</a>
+            {% if result.status in ["completed", "completed_without_summary"] %}
+              {{ editor_menu("transcript") }}
+            {% endif %}
+          </div>
         </div>
         {% if result.status not in ["completed", "completed_without_summary"] %}
           <p class="muted editor-progress">ИИ-редактура станет доступна после завершения обработки.</p>

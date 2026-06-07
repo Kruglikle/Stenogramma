@@ -136,6 +136,10 @@ body {
   gap: 8px;
 }
 
+.panel-actions {
+  align-items: flex-start;
+}
+
 .form {
   display: grid;
   gap: 14px;

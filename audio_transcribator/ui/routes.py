@@ -63,7 +63,7 @@ def can_access_job(username: str, job_id: str) -> bool:
     return owner in {None, username}
 
 
-def start_edit_transcript_process(job_id: str, editor_model: str) -> None:
+def start_edit_transcript_process(job_id: str, editor_model: str, transcript_source: str = "transcript") -> None:
     job_dir = settings.results_dir / job_id
     command = [
         sys.executable,
@@ -72,6 +72,8 @@ def start_edit_transcript_process(job_id: str, editor_model: str) -> None:
         str(job_dir),
         "--edit-model",
         editor_model,
+        "--edit-source",
+        transcript_source,
     ]
     with open(job_dir / "run.log", "a", encoding="utf-8") as log_file:
         subprocess.Popen(
@@ -223,7 +225,8 @@ def result_page(
     if not can_access_job(username, job_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
-    downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS]
+    visible_downloads = {"stenogramma.txt", "diarized_transcript.txt", "edited_transcript.txt", "summary.txt", "run.log"}
+    downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS and name in visible_downloads]
     return templates.TemplateResponse(
         request,
         "result.html",
@@ -271,6 +274,7 @@ def edit_result_transcript(
     request: Request,
     job_id: str,
     editor_model: str = Form(default=""),
+    transcript_source: str = Form(default="transcript"),
     ui_token: str | None = Cookie(default=None),
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
@@ -283,7 +287,8 @@ def edit_result_transcript(
     if not can_access_job(username, job_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
-    transcript = result.get("transcript")
+    transcript_source = "diarized" if transcript_source == "diarized" else "transcript"
+    transcript = result.get("diarized_transcript") if transcript_source == "diarized" else result.get("transcript")
     if not transcript:
         raise HTTPException(status_code=400, detail="Transcript is not ready")
     if result.get("status") not in {"completed", "completed_without_summary"}:
@@ -297,7 +302,7 @@ def edit_result_transcript(
     if not lock_path.exists():
         (job_dir / "editing_error.txt").unlink(missing_ok=True)
         lock_path.write_text(str(time.time()), encoding="utf-8")
-        start_edit_transcript_process(job_id, editor_model)
+        start_edit_transcript_process(job_id, editor_model, transcript_source)
 
     return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
 
