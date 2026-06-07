@@ -53,15 +53,10 @@ def embedding_source_checkpoint(model_dir: Path) -> Path:
     if candidates:
         return candidates[0]
 
-    checkpoint = model_dir / "pytorch_model.bin"
-    if checkpoint.exists():
-        return checkpoint
-
-    candidates = sorted(model_dir.rglob("pytorch_model.bin"))
-    if candidates:
-        return candidates[0]
-
-    raise RuntimeError(f"Local pyannote embedding checkpoint was not found in {model_dir}")
+    raise RuntimeError(
+        f"Local WeSpeaker ONNX checkpoint was not found in {model_dir}. "
+        "Download hbredin/wespeaker-voxceleb-resnet34-LM for pyannote 3.1."
+    )
 
 
 def embedding_checkpoint(model_dir: Path, target_dir: Path) -> Path:
@@ -69,7 +64,7 @@ def embedding_checkpoint(model_dir: Path, target_dir: Path) -> Path:
     if "pyannote" not in str(source).lower() and "wespeaker" in str(source).lower():
         return source
 
-    alias = target_dir.parent / "wespeaker-voxceleb-resnet34-LM.bin"
+    alias = target_dir.parent / "wespeaker-voxceleb-resnet34-LM.onnx"
     alias.parent.mkdir(parents=True, exist_ok=True)
     if not alias.exists() or alias.stat().st_size != source.stat().st_size:
         shutil.copy2(source, alias)
@@ -103,11 +98,11 @@ def main() -> None:
     target_dir = args.target_dir.resolve()
     pipeline_dir = target_dir / "speaker-diarization-3.1"
     segmentation_dir = target_dir / "segmentation-3.0"
-    embedding_dir = target_dir / "wespeaker-voxceleb-resnet34-LM"
+    embedding_dir = target_dir / "hbredin-wespeaker-voxceleb-resnet34-LM"
 
     download_repo("pyannote/speaker-diarization-3.1", pipeline_dir, args.token)
     download_repo("pyannote/segmentation-3.0", segmentation_dir, args.token)
-    download_repo("pyannote/wespeaker-voxceleb-resnet34-LM", embedding_dir, args.token)
+    download_repo("hbredin/wespeaker-voxceleb-resnet34-LM", embedding_dir, args.token)
 
     config_path = pipeline_dir / "config.yaml"
     config_path.write_text(

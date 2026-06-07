@@ -94,7 +94,7 @@ class Settings:
             os.getenv("PYANNOTE_SEGMENTATION_MODEL", self.pyannote_model_dir / "segmentation-3.0")
         ).resolve()
         self.pyannote_embedding_model = Path(
-            os.getenv("PYANNOTE_EMBEDDING_MODEL", self.pyannote_model_dir / "wespeaker-voxceleb-resnet34-LM")
+            os.getenv("PYANNOTE_EMBEDDING_MODEL", self.pyannote_model_dir / "hbredin-wespeaker-voxceleb-resnet34-LM")
         ).resolve()
         self.pyannote_device = os.getenv("PYANNOTE_DEVICE", "auto").strip().lower()
 

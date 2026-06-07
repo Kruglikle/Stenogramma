@@ -65,15 +65,10 @@ def embedding_source_checkpoint(model_dir: Path) -> Path:
     if candidates:
         return candidates[0]
 
-    checkpoint = model_dir / "pytorch_model.bin"
-    if checkpoint.exists():
-        return checkpoint
-
-    candidates = sorted(model_dir.rglob("pytorch_model.bin"))
-    if candidates:
-        return candidates[0]
-
-    raise RuntimeError(f"Local pyannote embedding checkpoint was not found in {model_dir}")
+    raise RuntimeError(
+        f"Local WeSpeaker ONNX checkpoint was not found in {model_dir}. "
+        "Download hbredin/wespeaker-voxceleb-resnet34-LM for pyannote 3.1."
+    )
 
 
 def embedding_checkpoint(model_dir: Path) -> Path:
@@ -81,7 +76,7 @@ def embedding_checkpoint(model_dir: Path) -> Path:
     if "pyannote" not in str(source).lower() and "wespeaker" in str(source).lower():
         return source
 
-    alias = settings.pyannote_model_dir.parent / "wespeaker-voxceleb-resnet34-LM.bin"
+    alias = settings.pyannote_model_dir.parent / "wespeaker-voxceleb-resnet34-LM.onnx"
     alias.parent.mkdir(parents=True, exist_ok=True)
     if not alias.exists() or alias.stat().st_size != source.stat().st_size:
         shutil.copy2(source, alias)

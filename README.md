@@ -189,7 +189,7 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 
 Диаризация остается опциональной: глобально она включается через `ENABLE_DIARIZATION=true`, а для каждой задачи отдельно через чекбокс `Включить диаризацию`.
 
-Один раз скачайте модели на сервере. Для скачивания нужен Hugging Face token с принятыми условиями моделей `pyannote/speaker-diarization-3.1`, `pyannote/segmentation-3.0` и `pyannote/wespeaker-voxceleb-resnet34-LM`. После скачивания token приложению в runtime не нужен.
+Один раз скачайте модели на сервере. Для скачивания нужен Hugging Face token с принятыми условиями моделей `pyannote/speaker-diarization-3.1` и `pyannote/segmentation-3.0`; WeSpeaker embedding берется из открытого `hbredin/wespeaker-voxceleb-resnet34-LM`. После скачивания token приложению в runtime не нужен.
 
 ```bash
 source .venv/bin/activate
@@ -208,7 +208,7 @@ ENABLE_DIARIZATION=true
 PYANNOTE_MODEL_DIR=/app/data/model_cache/pyannote
 PYANNOTE_PIPELINE_CONFIG=/app/data/model_cache/pyannote/speaker-diarization-3.1/config.yaml
 PYANNOTE_SEGMENTATION_MODEL=/app/data/model_cache/pyannote/segmentation-3.0
-PYANNOTE_EMBEDDING_MODEL=/app/data/model_cache/pyannote/wespeaker-voxceleb-resnet34-LM
+PYANNOTE_EMBEDDING_MODEL=/app/data/model_cache/pyannote/hbredin-wespeaker-voxceleb-resnet34-LM
 PYANNOTE_DEVICE=auto
 DIARIZATION_SPEAKERS=0
 DIARIZATION_MIN_SPEAKERS=0
