@@ -12,10 +12,11 @@ pipeline:
   name: pyannote.audio.pipelines.SpeakerDiarization
   params:
     clustering: AgglomerativeClustering
-    embedding: {embedding_model}
+    embedding: {embedding_model_dir}
     embedding_batch_size: 32
     embedding_exclude_overlap: true
-    segmentation: {segmentation_model}
+    segmentation:
+      checkpoint: {segmentation_checkpoint}
     segmentation_batch_size: 32
 params:
   clustering:
@@ -42,10 +43,20 @@ def yaml_path(path: Path) -> str:
     return json.dumps(str(path).replace("\\", "/"), ensure_ascii=False)
 
 
+def model_checkpoint(model_dir: Path) -> Path:
+    checkpoint = model_dir / "pytorch_model.bin"
+    if checkpoint.exists():
+        return checkpoint
+
+    candidates = sorted(model_dir.rglob("pytorch_model.bin"))
+    if candidates:
+        return candidates[0]
+
+    raise RuntimeError(f"Local pyannote model checkpoint was not found in {model_dir}")
+
+
 def ensure_local_pipeline_config() -> Path:
     config_path = settings.pyannote_pipeline_config
-    if os.getenv("PYANNOTE_PIPELINE_CONFIG") and config_path.exists():
-        return config_path
 
     if not settings.pyannote_segmentation_model.exists():
         raise RuntimeError(
@@ -63,8 +74,8 @@ def ensure_local_pipeline_config() -> Path:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         LOCAL_PIPELINE_TEMPLATE.format(
-            segmentation_model=yaml_path(settings.pyannote_segmentation_model),
-            embedding_model=yaml_path(settings.pyannote_embedding_model),
+            segmentation_checkpoint=yaml_path(model_checkpoint(settings.pyannote_segmentation_model)),
+            embedding_model_dir=yaml_path(settings.pyannote_embedding_model),
         ),
         encoding="utf-8",
     )
