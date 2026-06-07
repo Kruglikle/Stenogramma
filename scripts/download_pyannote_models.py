@@ -43,6 +43,18 @@ def model_checkpoint(model_dir: Path) -> Path:
     raise RuntimeError(f"Local pyannote model checkpoint was not found in {model_dir}")
 
 
+def embedding_checkpoint(model_dir: Path) -> Path:
+    checkpoint = model_dir / "speaker-embedding.onnx"
+    if checkpoint.exists():
+        return checkpoint
+
+    candidates = sorted(model_dir.rglob("*.onnx"))
+    if candidates:
+        return candidates[0]
+
+    raise RuntimeError(f"Local pyannote embedding ONNX checkpoint was not found in {model_dir}")
+
+
 def download_repo(repo_id: str, target_dir: Path, token: str | None) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
     print(f"Downloading {repo_id} -> {target_dir}")
@@ -80,7 +92,7 @@ def main() -> None:
     config_path.write_text(
         PIPELINE_TEMPLATE.format(
             segmentation_checkpoint=yaml_path(model_checkpoint(segmentation_dir)),
-            embedding_model_dir=yaml_path(embedding_dir),
+            embedding_model_dir=yaml_path(embedding_checkpoint(embedding_dir)),
         ),
         encoding="utf-8",
     )
