@@ -55,6 +55,7 @@ async def process_file(
     transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
     enable_summary: bool = Form(True),
     enable_diarization: bool = Form(False),
+    diarization_speakers: int = Form(0),
     authorization: str | None = Header(default=None),
 ):
     check_auth(authorization)
@@ -65,6 +66,7 @@ async def process_file(
             transcription_model_id=transcription_model,
             enable_summary=enable_summary,
             enable_diarization=enable_diarization,
+            diarization_speakers=max(diarization_speakers, 0) if enable_diarization else 0,
         )
     except TranscriptionModelError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -83,6 +85,7 @@ def process_url(
             transcription_model_id=data.transcription_model,
             enable_summary=data.enable_summary,
             enable_diarization=data.enable_diarization,
+            diarization_speakers=max(data.diarization_speakers, 0) if data.enable_diarization else 0,
         )
     except (TranscriptionModelError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))

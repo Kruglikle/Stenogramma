@@ -43,6 +43,10 @@
           <input name="enable_diarization" type="checkbox" value="1">
           <span>Включить диаризацию</span>
         </label>
+        <label>
+          Точное число спикеров для диаризации
+          <input name="diarization_speakers" type="number" min="0" step="1" value="{{ diarization_speakers or '' }}" placeholder="Авто">
+        </label>
         <button type="submit">Запустить обработку</button>
       </form>
     </section>

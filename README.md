@@ -212,12 +212,12 @@ PYANNOTE_EMBEDDING_MODEL=/app/data/model_cache/pyannote/hbredin-wespeaker-voxcel
 PYANNOTE_DEVICE=auto
 DIARIZATION_SPEAKERS=0
 DIARIZATION_MIN_SPEAKERS=0
-DIARIZATION_MAX_SPEAKERS=4
+DIARIZATION_MAX_SPEAKERS=0
 ```
 
 Для native-запуска вне Docker замените `/app/data/...` на абсолютный путь вашего проекта, например `/opt/audio-transcribator/data/...`.
 
-`DIARIZATION_SPEAKERS=0` включает автооценку числа спикеров. Если известно точное число участников, лучше указать его явно, например `DIARIZATION_SPEAKERS=2`. При явно заданном числе `DIARIZATION_MIN_SPEAKERS` и `DIARIZATION_MAX_SPEAKERS` не используются.
+`DIARIZATION_SPEAKERS=0`, `DIARIZATION_MIN_SPEAKERS=0` и `DIARIZATION_MAX_SPEAKERS=0` включают автооценку числа спикеров без системного ограничения сверху. Если известно точное число участников для конкретной задачи, укажите его в форме загрузки в поле `Точное число спикеров для диаризации`, например `2`; это передаст `num_speakers=2` только для этой обработки. Глобальный `DIARIZATION_SPEAKERS=2` используйте только если все задачи в установке всегда имеют ровно двух участников.
 
 В runtime pipeline принудительно работает через локальный `config.yaml`; он указывает на локальные директории segmentation и embedding моделей. Скрытые обращения к Hugging Face отключаются через `HF_HUB_OFFLINE=1` при загрузке pyannote pipeline.
 

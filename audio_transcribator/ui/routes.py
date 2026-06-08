@@ -63,6 +63,14 @@ def can_access_job(username: str, job_id: str) -> bool:
     return owner in {None, username}
 
 
+def parse_optional_positive_int(value: str | int | None) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(parsed, 0)
+
+
 def start_edit_transcript_process(job_id: str, editor_model: str, transcript_source: str = "transcript") -> None:
     job_dir = settings.results_dir / job_id
     command = [
@@ -153,6 +161,7 @@ def upload_page(
             "transcription_models": list_transcription_models(),
             "selected_transcription_model": DEFAULT_TRANSCRIPTION_MODEL_ID,
             "error": None,
+            "diarization_speakers": "",
             **build_cabinet_context(username),
         },
     )
@@ -167,12 +176,14 @@ def upload_file(
     transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
     enable_summary: bool = Form(default=False),
     enable_diarization: bool = Form(default=False),
+    diarization_speakers: str = Form(default=""),
     ui_token: str | None = Cookie(default=None),
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
 ):
     username = require_ui_auth(ui_token, ui_user, ui_user_sig)
     try:
+        parsed_diarization_speakers = parse_optional_positive_int(diarization_speakers)
         clean_source_url = source_url.strip()
         if file and file.filename:
             result = start_uploaded_file(
@@ -182,6 +193,7 @@ def upload_file(
                 title=title,
                 enable_summary=enable_summary,
                 enable_diarization=enable_diarization,
+                diarization_speakers=parsed_diarization_speakers if enable_diarization else 0,
             )
         elif clean_source_url:
             result = start_url(
@@ -191,6 +203,7 @@ def upload_file(
                 title=title,
                 enable_summary=enable_summary,
                 enable_diarization=enable_diarization,
+                diarization_speakers=parsed_diarization_speakers if enable_diarization else 0,
             )
         else:
             raise ValueError("Загрузите файл или вставьте ссылку на медиа")
@@ -202,6 +215,7 @@ def upload_file(
                 "transcription_models": list_transcription_models(),
                 "selected_transcription_model": transcription_model,
                 "error": str(exc),
+                "diarization_speakers": diarization_speakers,
                 **build_cabinet_context(username),
             },
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -131,10 +131,11 @@ def load_pipeline():
     return pipeline
 
 
-def build_pipeline_kwargs() -> dict:
+def build_pipeline_kwargs(diarization_speakers: int | None = None) -> dict:
     kwargs = {}
-    if settings.diarization_speakers > 0:
-        kwargs["num_speakers"] = settings.diarization_speakers
+    requested_speakers = diarization_speakers or settings.diarization_speakers
+    if requested_speakers > 0:
+        kwargs["num_speakers"] = requested_speakers
         return kwargs
     if settings.diarization_min_speakers > 0:
         kwargs["min_speakers"] = settings.diarization_min_speakers
@@ -254,10 +255,10 @@ def write_diarized_transcript(job_dir: Path, turns: list[dict]) -> None:
     write_text_atomic(job_dir / "diarized_transcript.txt", "\n".join(lines))
 
 
-def diarize(audio_file: Path, job_dir: Path) -> list[dict]:
+def diarize(audio_file: Path, job_dir: Path, diarization_speakers: int | None = None) -> list[dict]:
     print("Running local pyannote speaker diarization 3.1...", flush=True)
     pipeline = load_pipeline()
-    diarization = pipeline(str(audio_file), **build_pipeline_kwargs())
+    diarization = pipeline(str(audio_file), **build_pipeline_kwargs(diarization_speakers))
     turns = annotation_to_turns(diarization)
     write_diarization_outputs(job_dir, diarization, turns)
     write_diarized_transcript(job_dir, turns)

@@ -42,6 +42,7 @@ def save_metadata(
     transcription_model_id: str | None = None,
     enable_summary: bool | None = None,
     enable_diarization: bool | None = None,
+    diarization_speakers: int | None = None,
 ) -> None:
     save_job_metadata(
         job_dir,
@@ -50,17 +51,23 @@ def save_metadata(
         transcription_model_id=transcription_model_id,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
+        diarization_speakers=diarization_speakers,
     )
 
 
-def maybe_diarize(audio_file: Path, job_dir: Path, enable_diarization: bool) -> None:
+def maybe_diarize(audio_file: Path, job_dir: Path, enable_diarization: bool, diarization_speakers: int = 0) -> None:
     if not enable_diarization:
         return
     if not settings.enable_diarization:
         print("Diarization was requested but ENABLE_DIARIZATION is disabled.")
         save_job_timing(job_dir, "diarization", 0, status="skipped")
         return
-    timed_step(job_dir, "diarization", lambda: diarize(audio_file, job_dir), skipped=lambda result: not result)
+    timed_step(
+        job_dir,
+        "diarization",
+        lambda: diarize(audio_file, job_dir, diarization_speakers=diarization_speakers),
+        skipped=lambda result: not result,
+    )
 
 
 def maybe_summarize(transcript: str, job_dir: Path, enable_summary: bool) -> None:
@@ -109,6 +116,7 @@ def process_file(
     transcription_model_id: str = DEFAULT_TRANSCRIPTION_MODEL_ID,
     enable_summary: bool = True,
     enable_diarization: bool = False,
+    diarization_speakers: int = 0,
 ) -> None:
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
@@ -118,6 +126,7 @@ def process_file(
         transcription_model_id=transcription_model_id,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
+        diarization_speakers=diarization_speakers,
     )
 
     try:
@@ -127,7 +136,7 @@ def process_file(
             "transcription",
             lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
         )
-        maybe_diarize(audio_file, job_dir, enable_diarization)
+        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers)
         maybe_summarize(transcript, job_dir, enable_summary)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
         print("Processing completed.")
@@ -142,6 +151,7 @@ def process_url(
     transcription_model_id: str = DEFAULT_TRANSCRIPTION_MODEL_ID,
     enable_summary: bool = True,
     enable_diarization: bool = False,
+    diarization_speakers: int = 0,
 ) -> None:
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
@@ -151,6 +161,7 @@ def process_url(
         transcription_model_id=transcription_model_id,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
+        diarization_speakers=diarization_speakers,
     )
 
     try:
@@ -163,7 +174,7 @@ def process_url(
             "transcription",
             lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
         )
-        maybe_diarize(audio_file, job_dir, enable_diarization)
+        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers)
         maybe_summarize(transcript, job_dir, enable_summary)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
         print("Processing completed.")
@@ -180,6 +191,7 @@ def main() -> None:
     parser.add_argument("--transcription-model", default=DEFAULT_TRANSCRIPTION_MODEL_ID)
     parser.add_argument("--no-summary", action="store_true")
     parser.add_argument("--diarization", action="store_true")
+    parser.add_argument("--diarization-speakers", type=int, default=0)
     parser.add_argument("--edit-model")
     parser.add_argument("--edit-source", default="transcript")
     args = parser.parse_args()
@@ -193,6 +205,7 @@ def main() -> None:
             transcription_model_id=args.transcription_model,
             enable_summary=not args.no_summary,
             enable_diarization=args.diarization,
+            diarization_speakers=max(args.diarization_speakers, 0),
         )
     else:
         process_file(
@@ -201,6 +214,7 @@ def main() -> None:
             transcription_model_id=args.transcription_model,
             enable_summary=not args.no_summary,
             enable_diarization=args.diarization,
+            diarization_speakers=max(args.diarization_speakers, 0),
         )
 
 

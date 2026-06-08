@@ -187,6 +187,7 @@ def save_job_metadata(
     title: str | None = None,
     enable_summary: bool | None = None,
     enable_diarization: bool | None = None,
+    diarization_speakers: int | None = None,
 ) -> None:
     existing_metadata = load_job_metadata(job_dir)
     started_at = existing_metadata.get("started_at") or utc_now_iso()
@@ -206,6 +207,9 @@ def save_job_metadata(
         "enable_diarization": enable_diarization
         if enable_diarization is not None
         else existing_metadata.get("enable_diarization", False),
+        "diarization_speakers": diarization_speakers
+        if diarization_speakers is not None
+        else existing_metadata.get("diarization_speakers", 0),
         "timings": existing_metadata.get("timings", {}),
         "files": sorted(p.name for p in job_dir.iterdir() if p.is_file()),
     }
@@ -492,6 +496,7 @@ def start_uploaded_file(
     title: str | None = None,
     enable_summary: bool = True,
     enable_diarization: bool = False,
+    diarization_speakers: int = 0,
 ) -> dict:
     transcription_model = resolve_transcription_model(transcription_model_id)
     upload_size = get_upload_size(file)
@@ -516,6 +521,7 @@ def start_uploaded_file(
         title=title or safe_filename,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
+        diarization_speakers=diarization_speakers,
     )
     save_job_timing(job_dir, "upload", time.perf_counter() - started)
 
@@ -532,6 +538,8 @@ def start_uploaded_file(
         command.append("--no-summary")
     if enable_diarization:
         command.append("--diarization")
+        if diarization_speakers > 0:
+            command.extend(["--diarization-speakers", str(diarization_speakers)])
 
     with open(log_path, "w", encoding="utf-8") as log_file:
         subprocess.Popen(
@@ -547,6 +555,7 @@ def start_uploaded_file(
         "transcription_model": transcription_model["id"],
         "enable_summary": enable_summary,
         "enable_diarization": enable_diarization,
+        "diarization_speakers": diarization_speakers,
         "message": "File uploaded and processing started",
     }
 
@@ -558,6 +567,7 @@ def start_url(
     title: str | None = None,
     enable_summary: bool = True,
     enable_diarization: bool = False,
+    diarization_speakers: int = 0,
 ) -> dict:
     parsed_url = urlparse(source_url)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
@@ -578,6 +588,7 @@ def start_url(
         title=title or source_url,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
+        diarization_speakers=diarization_speakers,
     )
 
     log_path = job_dir / "run.log"
@@ -595,6 +606,8 @@ def start_url(
         command.append("--no-summary")
     if enable_diarization:
         command.append("--diarization")
+        if diarization_speakers > 0:
+            command.extend(["--diarization-speakers", str(diarization_speakers)])
 
     with open(log_path, "w", encoding="utf-8") as log_file:
         subprocess.Popen(
@@ -610,5 +623,6 @@ def start_url(
         "transcription_model": transcription_model["id"],
         "enable_summary": enable_summary,
         "enable_diarization": enable_diarization,
+        "diarization_speakers": diarization_speakers,
         "message": "Media URL queued and processing started",
     }

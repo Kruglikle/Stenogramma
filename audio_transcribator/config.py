@@ -80,7 +80,7 @@ class Settings:
         self.enable_diarization = os.getenv("ENABLE_DIARIZATION", "false").lower() in {"1", "true", "yes"}
         self.diarization_speakers = int(os.getenv("DIARIZATION_SPEAKERS", "0"))
         self.diarization_min_speakers = int(os.getenv("DIARIZATION_MIN_SPEAKERS", "0"))
-        self.diarization_max_speakers = int(os.getenv("DIARIZATION_MAX_SPEAKERS", "4"))
+        self.diarization_max_speakers = int(os.getenv("DIARIZATION_MAX_SPEAKERS", "0"))
         self.pyannote_model_dir = Path(
             os.getenv("PYANNOTE_MODEL_DIR", self.model_cache_dir / "pyannote")
         ).resolve()

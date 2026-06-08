@@ -16,3 +16,4 @@ class ProcessUrlRequest(BaseModel):
     transcription_model: str | None = None
     enable_summary: bool = True
     enable_diarization: bool = False
+    diarization_speakers: int = 0
