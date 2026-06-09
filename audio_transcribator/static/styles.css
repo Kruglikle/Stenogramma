@@ -174,67 +174,7 @@ label {
   accent-color: var(--accent);
 }
 
-.speaker-choice {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.speaker-choice legend {
-  margin-bottom: 2px;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.speaker-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.speaker-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 750;
-}
-
-.speaker-option input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.speaker-option span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 58px;
-  min-height: 40px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: #fbfffb;
-  cursor: pointer;
-}
-
-.speaker-option input:checked + span {
-  color: #ffffff;
-  border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: 0 8px 18px rgba(52, 126, 85, 0.16);
-}
-
-.speaker-option input:focus-visible + span {
-  box-shadow: 0 0 0 3px rgba(92, 168, 120, 0.22);
-}
-
-.speaker-custom {
+.speaker-count-field {
   max-width: 220px;
 }
 

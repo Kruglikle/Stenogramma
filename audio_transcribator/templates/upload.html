@@ -43,26 +43,10 @@
           <input name="enable_diarization" type="checkbox" value="1">
           <span>Включить диаризацию</span>
         </label>
-        <fieldset class="speaker-choice">
-          <legend>Количество спикеров для диаризации</legend>
-          <div class="speaker-options">
-            {% for option in ["0", "1", "2", "3", "4"] %}
-              <label class="speaker-option">
-                <input
-                  name="diarization_speakers"
-                  type="radio"
-                  value="{{ option }}"
-                  {% if (diarization_speakers or "0") == option %}checked{% endif %}
-                >
-                <span>{% if option == "0" %}Авто{% else %}{{ option }}{% endif %}</span>
-              </label>
-            {% endfor %}
-          </div>
-          <label class="speaker-custom">
-            Другое число
-            <input name="diarization_speakers_custom" type="number" min="5" step="1" value="{{ diarization_speakers_custom or '' }}" placeholder="5+">
-          </label>
-        </fieldset>
+        <label class="speaker-count-field">
+          Количество говорящих для диаризации
+          <input name="diarization_speakers" type="number" min="0" step="1" value="{{ diarization_speakers or '' }}" placeholder="Авто">
+        </label>
         <div class="upload-progress" data-upload-progress hidden>
           <div class="upload-progress-header">
             <span data-upload-progress-label>Загрузка файла...</span>
