@@ -162,6 +162,7 @@ def upload_page(
             "selected_transcription_model": DEFAULT_TRANSCRIPTION_MODEL_ID,
             "error": None,
             "diarization_speakers": "",
+            "diarization_speakers_custom": "",
             **build_cabinet_context(username),
         },
     )
@@ -177,13 +178,14 @@ def upload_file(
     enable_summary: bool = Form(default=False),
     enable_diarization: bool = Form(default=False),
     diarization_speakers: str = Form(default=""),
+    diarization_speakers_custom: str = Form(default=""),
     ui_token: str | None = Cookie(default=None),
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
 ):
     username = require_ui_auth(ui_token, ui_user, ui_user_sig)
     try:
-        parsed_diarization_speakers = parse_optional_positive_int(diarization_speakers)
+        parsed_diarization_speakers = parse_optional_positive_int(diarization_speakers_custom or diarization_speakers)
         clean_source_url = source_url.strip()
         if file and file.filename:
             result = start_uploaded_file(
@@ -216,6 +218,7 @@ def upload_file(
                 "selected_transcription_model": transcription_model,
                 "error": str(exc),
                 "diarization_speakers": diarization_speakers,
+                "diarization_speakers_custom": diarization_speakers_custom,
                 **build_cabinet_context(username),
             },
             status_code=status.HTTP_400_BAD_REQUEST,
