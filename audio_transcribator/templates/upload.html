@@ -9,7 +9,7 @@
       <div class="section-header">
         <h1>Стенограмма</h1>
       </div>
-      <form class="form upload-form" method="post" action="/ui/upload" enctype="multipart/form-data">
+      <form class="form upload-form" method="post" action="/ui/upload" enctype="multipart/form-data" data-upload-form>
         {% if error %}
           <p class="error">{{ error }}</p>
         {% endif %}
@@ -63,7 +63,16 @@
             <input name="diarization_speakers_custom" type="number" min="5" step="1" value="{{ diarization_speakers_custom or '' }}" placeholder="5+">
           </label>
         </fieldset>
-        <button type="submit">Запустить обработку</button>
+        <div class="upload-progress" data-upload-progress hidden>
+          <div class="upload-progress-header">
+            <span data-upload-progress-label>Загрузка файла...</span>
+            <span data-upload-progress-percent>0%</span>
+          </div>
+          <div class="upload-progress-track">
+            <div class="upload-progress-bar" data-upload-progress-bar></div>
+          </div>
+        </div>
+        <button type="submit" data-upload-submit>Запустить обработку</button>
       </form>
     </section>
   </div>
@@ -72,5 +81,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/cabinet.js?v=cabinet-2"></script>
+<script src="/static/cabinet.js?v=cabinet-3"></script>
 {% endblock %}
