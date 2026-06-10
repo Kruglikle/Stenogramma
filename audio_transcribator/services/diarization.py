@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import shutil
 from pathlib import Path
 
@@ -165,9 +164,40 @@ class DiarizationProgressHook:
         self.progress_callback(percent, f"Этап pyannote: {step_name}")
 
 
-def speaker_sort_key(speaker: str) -> tuple[str, int]:
-    match = re.search(r"(\d+)$", speaker)
-    return (speaker[: match.start()] if match else speaker, int(match.group(1)) if match else 0)
+def turn_duration(turn: dict) -> float:
+    return max(float(turn["end"]) - float(turn["start"]), 0.0)
+
+
+def speaker_durations(turns: list[dict]) -> dict[str, float]:
+    durations = {}
+    for turn in turns:
+        durations[turn["speaker"]] = durations.get(turn["speaker"], 0.0) + turn_duration(turn)
+    return durations
+
+
+def filter_noisy_turns(turns: list[dict]) -> list[dict]:
+    if not turns:
+        return turns
+
+    min_turn_seconds = max(settings.diarization_min_turn_seconds, 0)
+    filtered = [turn for turn in turns if turn_duration(turn) >= min_turn_seconds]
+    if not filtered:
+        return turns
+
+    durations = speaker_durations(filtered)
+    total_duration = sum(durations.values())
+    min_speaker_ratio = max(settings.diarization_min_speaker_ratio, 0)
+    if total_duration <= 0 or min_speaker_ratio <= 0:
+        return filtered
+
+    keep_speakers = {
+        speaker
+        for speaker, duration in durations.items()
+        if duration / total_duration >= min_speaker_ratio
+    }
+    if not keep_speakers:
+        return filtered
+    return [turn for turn in filtered if turn["speaker"] in keep_speakers]
 
 
 def normalize_speaker_labels(turns: list[dict]) -> list[dict]:
@@ -178,7 +208,7 @@ def normalize_speaker_labels(turns: list[dict]) -> list[dict]:
             ordered_speakers.append(speaker)
     speaker_map = {
         speaker: f"Спикер {index}"
-        for index, speaker in enumerate(sorted(ordered_speakers, key=speaker_sort_key), start=1)
+        for index, speaker in enumerate(ordered_speakers, start=1)
     }
     return [
         {
@@ -202,10 +232,42 @@ def annotation_to_turns(annotation) -> list[dict]:
             }
         )
     turns.sort(key=lambda item: (item["start"], item["end"]))
-    return normalize_speaker_labels(turns)
+    return normalize_speaker_labels(filter_noisy_turns(turns))
 
 
-def write_diarization_outputs(job_dir: Path, annotation, turns: list[dict]) -> None:
+def build_diarization_stats(turns: list[dict], requested_speakers: int | None = None) -> dict:
+    requested = requested_speakers or settings.diarization_speakers or None
+    durations = speaker_durations(turns)
+    total_duration = sum(durations.values())
+    speakers = []
+    for speaker, duration in sorted(durations.items(), key=lambda item: item[0]):
+        ratio = duration / total_duration if total_duration else 0
+        speakers.append(
+            {
+                "speaker": speaker,
+                "seconds": round(duration, 3),
+                "ratio": round(ratio, 4),
+                "percent": round(ratio * 100, 2),
+            }
+        )
+
+    lowest_ratio = min((item["ratio"] for item in speakers), default=0)
+    low_confidence = (
+        (len(speakers) > 1 and lowest_ratio < settings.diarization_low_confidence_ratio)
+        or (requested is not None and len(speakers) < requested)
+    )
+    return {
+        "requested_speakers": requested,
+        "detected_speakers": len(speakers),
+        "total_speech_seconds": round(total_duration, 3),
+        "speakers": speakers,
+        "low_confidence": low_confidence,
+        "min_turn_seconds": settings.diarization_min_turn_seconds,
+        "min_speaker_ratio": settings.diarization_min_speaker_ratio,
+    }
+
+
+def write_diarization_outputs(job_dir: Path, annotation, turns: list[dict], stats: dict) -> None:
     lines = [
         f"{format_timestamp(item['start'])} - {format_timestamp(item['end'])}: {item['speaker']}"
         for item in turns
@@ -213,6 +275,10 @@ def write_diarization_outputs(job_dir: Path, annotation, turns: list[dict]) -> N
     write_text_atomic(job_dir / "diarization.txt", "\n".join(lines))
     (job_dir / "diarization.json").write_text(
         json.dumps(turns, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (job_dir / "diarization_stats.json").write_text(
+        json.dumps(stats, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     with open(job_dir / "diarization.rttm", "w", encoding="utf-8") as rttm:
@@ -289,6 +355,7 @@ def diarize(
     if progress_callback:
         progress_callback(5, "Запуск pyannote")
     kwargs = build_pipeline_kwargs(diarization_speakers)
+    print(f"Pyannote diarization kwargs: {kwargs or '{}'}", flush=True)
     if progress_callback:
         diarization = pipeline(str(audio_file), hook=DiarizationProgressHook(progress_callback), **kwargs)
     else:
@@ -296,7 +363,19 @@ def diarize(
     if progress_callback:
         progress_callback(99, "Сборка стенограммы со спикерами")
     turns = annotation_to_turns(diarization)
-    write_diarization_outputs(job_dir, diarization, turns)
+    stats = build_diarization_stats(turns, requested_speakers=diarization_speakers)
+    print(
+        "Diarization speaker distribution: "
+        + ", ".join(f"{item['speaker']}={item['percent']}%" for item in stats["speakers"]),
+        flush=True,
+    )
+    if stats["low_confidence"]:
+        print(
+            "Diarization warning: one speaker cluster is too small; "
+            "audio may contain one dominant voice or poor speaker separation.",
+            flush=True,
+        )
+    write_diarization_outputs(job_dir, diarization, turns, stats)
     write_diarized_transcript(job_dir, turns)
     print(f"Diarization completed: {len(turns)} speaker turns.", flush=True)
     if progress_callback:

@@ -81,6 +81,9 @@ class Settings:
         self.diarization_speakers = int(os.getenv("DIARIZATION_SPEAKERS", "0"))
         self.diarization_min_speakers = int(os.getenv("DIARIZATION_MIN_SPEAKERS", "0"))
         self.diarization_max_speakers = int(os.getenv("DIARIZATION_MAX_SPEAKERS", "0"))
+        self.diarization_min_turn_seconds = float(os.getenv("DIARIZATION_MIN_TURN_SECONDS", "0.25"))
+        self.diarization_min_speaker_ratio = float(os.getenv("DIARIZATION_MIN_SPEAKER_RATIO", "0.02"))
+        self.diarization_low_confidence_ratio = float(os.getenv("DIARIZATION_LOW_CONFIDENCE_RATIO", "0.05"))
         self.pyannote_model_dir = Path(
             os.getenv("PYANNOTE_MODEL_DIR", self.model_cache_dir / "pyannote")
         ).resolve()

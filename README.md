@@ -213,11 +213,16 @@ PYANNOTE_DEVICE=auto
 DIARIZATION_SPEAKERS=0
 DIARIZATION_MIN_SPEAKERS=0
 DIARIZATION_MAX_SPEAKERS=0
+DIARIZATION_MIN_TURN_SECONDS=0.25
+DIARIZATION_MIN_SPEAKER_RATIO=0.02
+DIARIZATION_LOW_CONFIDENCE_RATIO=0.05
 ```
 
 Для native-запуска вне Docker замените `/app/data/...` на абсолютный путь вашего проекта, например `/opt/audio-transcribator/data/...`.
 
 `DIARIZATION_SPEAKERS=0`, `DIARIZATION_MIN_SPEAKERS=0` и `DIARIZATION_MAX_SPEAKERS=0` включают автооценку числа спикеров без системного ограничения сверху. Если известно точное число участников для конкретной задачи, укажите его в форме загрузки в поле `Точное число спикеров для диаризации`, например `2`; это передаст `num_speakers=2` только для этой обработки. Глобальный `DIARIZATION_SPEAKERS=2` используйте только если все задачи в установке всегда имеют ровно двух участников.
+
+`DIARIZATION_MIN_TURN_SECONDS` отсекает слишком короткие шумовые фрагменты спикеров. `DIARIZATION_MIN_SPEAKER_RATIO` отсекает кластеры, которые занимают слишком маленькую долю речи. `DIARIZATION_LOW_CONFIDENCE_RATIO` помечает диаризацию как неуверенную в диагностике, если один из найденных спикеров слишком мал.
 
 В runtime pipeline принудительно работает через локальный `config.yaml`; он указывает на локальные директории segmentation и embedding моделей. Скрытые обращения к Hugging Face отключаются через `HF_HUB_OFFLINE=1` при загрузке pyannote pipeline.
 
@@ -233,5 +238,5 @@ DIARIZATION_MAX_SPEAKERS=0
 - `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`, `WHISPER_LOCAL_FILES_ONLY`
 - `TRANSCRIPTION_MODELS_FILE`
 - `ENABLE_DIARIZATION`, `PYANNOTE_MODEL_DIR`, `PYANNOTE_PIPELINE_CONFIG`, `PYANNOTE_SEGMENTATION_MODEL`, `PYANNOTE_EMBEDDING_MODEL`, `PYANNOTE_DEVICE`
-- `DIARIZATION_SPEAKERS`, `DIARIZATION_MIN_SPEAKERS`, `DIARIZATION_MAX_SPEAKERS`
+- `DIARIZATION_SPEAKERS`, `DIARIZATION_MIN_SPEAKERS`, `DIARIZATION_MAX_SPEAKERS`, `DIARIZATION_MIN_TURN_SECONDS`, `DIARIZATION_MIN_SPEAKER_RATIO`, `DIARIZATION_LOW_CONFIDENCE_RATIO`
 
