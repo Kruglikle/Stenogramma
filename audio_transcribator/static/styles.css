@@ -636,6 +636,39 @@ button:disabled {
   margin-top: 16px;
 }
 
+.progress-panel {
+  background: #fbfffb;
+}
+
+.progress-percent {
+  color: var(--accent-dark);
+  font-size: 22px;
+  white-space: nowrap;
+}
+
+.task-progress-track {
+  height: 14px;
+  overflow: hidden;
+  background: #d8ebde;
+  border-radius: 999px;
+}
+
+.task-progress-bar {
+  min-width: 2px;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.task-progress-bar.status-failed {
+  background: var(--danger);
+}
+
+.task-progress-bar.status-completed {
+  background: var(--success);
+}
+
 .timings-panel {
   background: #fbfffb;
 }

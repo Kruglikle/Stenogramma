@@ -60,6 +60,21 @@
       </div>
     </section>
 
+    <div id="progress-panel">
+      <section class="panel progress-panel">
+        <div class="section-header compact-header">
+          <div>
+            <h2>Прогресс обработки</h2>
+            <p class="muted">{{ result.progress.label }}{% if result.progress.detail %}: {{ result.progress.detail }}{% endif %}</p>
+          </div>
+          <strong class="progress-percent">{{ result.progress.percent }}%</strong>
+        </div>
+        <div class="task-progress-track" aria-label="Прогресс обработки">
+          <div class="task-progress-bar status-{{ result.progress.status }}" style="width: {{ result.progress.percent }}%"></div>
+        </div>
+      </section>
+    </div>
+
     <div id="timings-panel">
       {% if result.timings and result.timings["items"] %}
       <section class="panel timings-panel">
@@ -233,7 +248,7 @@
           status.textContent = nextStatus.textContent;
         }
 
-        for (const id of ["downloads", "timings-panel", "diarization-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel", "cabinet-sidebar"]) {
+        for (const id of ["downloads", "progress-panel", "timings-panel", "diarization-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel", "cabinet-sidebar"]) {
           const current = document.getElementById(id);
           const next = doc.getElementById(id);
           if (current && next) {

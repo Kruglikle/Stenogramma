@@ -10,8 +10,10 @@ from audio_transcribator.services.diarization import diarize
 from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.jobs import (
     ensure_user_storage_quota,
+    load_job_progress,
     load_job_metadata,
     save_job_metadata,
+    save_job_progress,
     save_job_timing,
 )
 from audio_transcribator.services.summary import summarize
@@ -20,6 +22,82 @@ from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPT
 
 
 T = TypeVar("T")
+
+STEP_WEIGHTS = {
+    "download": 10,
+    "prepare_audio": 10,
+    "transcription": 45,
+    "diarization": 25,
+    "summary": 10,
+}
+
+STEP_LABELS = {
+    "download": "Скачивание медиа",
+    "prepare_audio": "Подготовка аудио",
+    "transcription": "Транскрибация",
+    "diarization": "Диаризация",
+    "summary": "Резюме",
+}
+
+
+def build_progress_plan(source_is_url: bool, enable_diarization: bool, enable_summary: bool) -> dict[str, tuple[float, float]]:
+    steps = []
+    if source_is_url:
+        steps.append("download")
+    steps.extend(["prepare_audio", "transcription"])
+    if enable_diarization:
+        steps.append("diarization")
+    if enable_summary:
+        steps.append("summary")
+
+    total_weight = sum(STEP_WEIGHTS[step] for step in steps) or 1
+    current = 0.0
+    plan = {}
+    for step in steps:
+        width = STEP_WEIGHTS[step] / total_weight * 100
+        plan[step] = (current, width)
+        current += width
+    return plan
+
+
+def update_progress(
+    job_dir: Path,
+    plan: dict[str, tuple[float, float]],
+    step: str,
+    stage_percent: float,
+    detail: str | None = None,
+) -> None:
+    start, width = plan.get(step, (0, 0))
+    overall = start + width * max(0, min(100, stage_percent)) / 100
+    save_job_progress(job_dir, overall, step, label=STEP_LABELS.get(step), detail=detail)
+
+
+def run_progress_step(
+    job_dir: Path,
+    plan: dict[str, tuple[float, float]],
+    step: str,
+    action: Callable[[Callable[[float, str | None], None]], T],
+    skipped: Callable[[T], bool] | None = None,
+) -> T:
+    update_progress(job_dir, plan, step, 0)
+
+    def stage_progress(percent: float, detail: str | None = None) -> None:
+        update_progress(job_dir, plan, step, percent, detail=detail)
+
+    result = timed_step(job_dir, step, lambda: action(stage_progress), skipped=skipped)
+    update_progress(job_dir, plan, step, 100)
+    return result
+
+
+def mark_progress_failed(job_dir: Path, detail: str | None = None) -> None:
+    current = load_job_progress(job_dir, "failed")
+    save_job_progress(
+        job_dir,
+        current.get("percent", 0),
+        current.get("step", "failed"),
+        detail=detail or current.get("detail", ""),
+        status="failed",
+    )
 
 
 def timed_step(job_dir: Path, step: str, action: Callable[[], T], skipped: Callable[[T], bool] | None = None) -> T:
@@ -55,13 +133,34 @@ def save_metadata(
     )
 
 
-def maybe_diarize(audio_file: Path, job_dir: Path, enable_diarization: bool, diarization_speakers: int = 0) -> None:
+def maybe_diarize(
+    audio_file: Path,
+    job_dir: Path,
+    enable_diarization: bool,
+    diarization_speakers: int = 0,
+    progress_plan: dict[str, tuple[float, float]] | None = None,
+) -> None:
     if not enable_diarization:
         return
     if not settings.enable_diarization:
         print("Diarization was requested but ENABLE_DIARIZATION is disabled.")
         save_job_timing(job_dir, "diarization", 0, status="skipped")
         return
+    if progress_plan:
+        run_progress_step(
+            job_dir,
+            progress_plan,
+            "diarization",
+            lambda progress: diarize(
+                audio_file,
+                job_dir,
+                diarization_speakers=diarization_speakers,
+                progress_callback=progress,
+            ),
+            skipped=lambda result: not result,
+        )
+        return
+
     timed_step(
         job_dir,
         "diarization",
@@ -70,11 +169,26 @@ def maybe_diarize(audio_file: Path, job_dir: Path, enable_diarization: bool, dia
     )
 
 
-def maybe_summarize(transcript: str, job_dir: Path, enable_summary: bool) -> None:
+def maybe_summarize(
+    transcript: str,
+    job_dir: Path,
+    enable_summary: bool,
+    progress_plan: dict[str, tuple[float, float]] | None = None,
+) -> None:
     if not enable_summary:
         print("Summary was disabled for this job.")
         save_job_timing(job_dir, "summary", 0, status="skipped")
         return
+    if progress_plan:
+        run_progress_step(
+            job_dir,
+            progress_plan,
+            "summary",
+            lambda progress: summarize(transcript, job_dir, progress_callback=progress),
+            skipped=lambda result: result is None,
+        )
+        return
+
     timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
 
 
@@ -128,19 +242,34 @@ def process_file(
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
     )
+    progress_plan = build_progress_plan(False, enable_diarization, enable_summary)
+    save_job_progress(job_dir, 0, "queued")
 
     try:
-        audio_file = timed_step(job_dir, "prepare_audio", lambda: prepare_audio(input_file, job_dir))
-        transcript = timed_step(
+        audio_file = run_progress_step(
             job_dir,
-            "transcription",
-            lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
+            progress_plan,
+            "prepare_audio",
+            lambda progress: prepare_audio(input_file, job_dir),
         )
-        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers)
-        maybe_summarize(transcript, job_dir, enable_summary)
+        transcript = run_progress_step(
+            job_dir,
+            progress_plan,
+            "transcription",
+            lambda progress: transcribe(
+                audio_file,
+                job_dir,
+                transcription_model_id=transcription_model_id,
+                progress_callback=progress,
+            ),
+        )
+        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
+        maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
+        save_job_progress(job_dir, 100, "completed", status="completed")
         print("Processing completed.")
-    except Exception:
+    except Exception as exc:
+        mark_progress_failed(job_dir, str(exc))
         save_metadata(job_dir, input_file, status="failed", transcription_model_id=transcription_model_id)
         raise
 
@@ -163,22 +292,42 @@ def process_url(
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
     )
+    progress_plan = build_progress_plan(True, enable_diarization, enable_summary)
+    save_job_progress(job_dir, 0, "queued")
 
     try:
-        input_file = timed_step(job_dir, "download", lambda: download_media(source_url, job_dir))
+        input_file = run_progress_step(
+            job_dir,
+            progress_plan,
+            "download",
+            lambda progress: download_media(source_url, job_dir),
+        )
         enforce_download_quota(job_dir, input_file)
         save_metadata(job_dir, input_file, status="running", transcription_model_id=transcription_model_id)
-        audio_file = timed_step(job_dir, "prepare_audio", lambda: prepare_audio(input_file, job_dir))
-        transcript = timed_step(
+        audio_file = run_progress_step(
             job_dir,
-            "transcription",
-            lambda: transcribe(audio_file, job_dir, transcription_model_id=transcription_model_id),
+            progress_plan,
+            "prepare_audio",
+            lambda progress: prepare_audio(input_file, job_dir),
         )
-        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers)
-        maybe_summarize(transcript, job_dir, enable_summary)
+        transcript = run_progress_step(
+            job_dir,
+            progress_plan,
+            "transcription",
+            lambda progress: transcribe(
+                audio_file,
+                job_dir,
+                transcription_model_id=transcription_model_id,
+                progress_callback=progress,
+            ),
+        )
+        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
+        maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
+        save_job_progress(job_dir, 100, "completed", status="completed")
         print("Processing completed.")
-    except Exception:
+    except Exception as exc:
+        mark_progress_failed(job_dir, str(exc))
         save_metadata(job_dir, source_url, status="failed", transcription_model_id=transcription_model_id)
         raise
 

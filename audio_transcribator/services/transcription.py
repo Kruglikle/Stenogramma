@@ -16,6 +16,15 @@ OPENROUTER_RETRY_STATUS_CODES = {502, 503, 504}
 OPENROUTER_MAX_ATTEMPTS = 3
 
 
+def format_timestamp(seconds: float) -> str:
+    total_seconds = max(int(round(seconds)), 0)
+    minutes, seconds_part = divmod(total_seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{seconds_part:02d}"
+    return f"{minutes:02d}:{seconds_part:02d}"
+
+
 def normalize_transcript_text(text: str) -> str:
     return " ".join(text.split())
 
@@ -61,14 +70,19 @@ def resolve_whisper_model_source() -> str:
     return configured_model
 
 
-def transcribe(audio_file: Path, job_dir: Path, transcription_model_id: str | None = None) -> str:
+def transcribe(
+    audio_file: Path,
+    job_dir: Path,
+    transcription_model_id: str | None = None,
+    progress_callback=None,
+) -> str:
     model_config = resolve_transcription_model(transcription_model_id)
     print(f"Transcribing with {model_config['id']}...")
 
     if model_config["provider"] == "openrouter":
-        return transcribe_openrouter(audio_file, job_dir, model_config["model"])
+        return transcribe_openrouter(audio_file, job_dir, model_config["model"], progress_callback=progress_callback)
 
-    return transcribe_local(audio_file, job_dir)
+    return transcribe_local(audio_file, job_dir, progress_callback=progress_callback)
 
 
 def _save_transcript_file(job_dir: Path, transcript: str) -> None:
@@ -82,7 +96,7 @@ def _save_transcript_segments(job_dir: Path, segments: list[dict]) -> None:
     )
 
 
-def transcribe_local(audio_file: Path, job_dir: Path) -> str:
+def transcribe_local(audio_file: Path, job_dir: Path, progress_callback=None) -> str:
     from faster_whisper import WhisperModel
 
     settings.model_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -93,11 +107,12 @@ def transcribe_local(audio_file: Path, job_dir: Path) -> str:
         local_files_only=settings.whisper_local_files_only,
     )
 
-    segments, _ = model.transcribe(
+    segments, info = model.transcribe(
         str(audio_file),
         language=settings.transcription_language,
         task="transcribe",
     )
+    duration = float(getattr(info, "duration", 0) or 0)
     segment_texts = []
     transcript_segments = []
     for segment in segments:
@@ -114,20 +129,27 @@ def transcribe_local(audio_file: Path, job_dir: Path) -> str:
             )
             _save_transcript_file(job_dir, normalize_transcript_text(" ".join(segment_texts)))
             _save_transcript_segments(job_dir, transcript_segments)
+            if progress_callback and duration > 0:
+                progress_callback(
+                    min(float(segment.end) / duration * 100, 99),
+                    f"Обработано {format_timestamp(float(segment.end))} из {format_timestamp(duration)}",
+                )
 
     transcript = normalize_transcript_text(" ".join(segment_texts))
     _save_transcript_file(job_dir, transcript)
     _save_transcript_segments(job_dir, transcript_segments)
+    if progress_callback:
+        progress_callback(100)
 
     return transcript
 
 
-def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str) -> str:
+def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str, progress_callback=None) -> str:
     if not settings.openrouter_api_key:
         raise RuntimeError("OPENROUTER_API_KEY is required for OpenRouter transcription models")
 
     if audio_file.stat().st_size > settings.openrouter_transcription_max_bytes:
-        return transcribe_openrouter_chunked(audio_file, job_dir, model)
+        return transcribe_openrouter_chunked(audio_file, job_dir, model, progress_callback=progress_callback)
 
     response_data = transcribe_openrouter_file(audio_file, model)
     text = extract_openrouter_text(response_data)
@@ -141,11 +163,13 @@ def transcribe_openrouter(audio_file: Path, job_dir: Path, model: str) -> str:
             json.dumps(usage, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+    if progress_callback:
+        progress_callback(100)
 
     return text
 
 
-def transcribe_openrouter_chunked(audio_file: Path, job_dir: Path, model: str) -> str:
+def transcribe_openrouter_chunked(audio_file: Path, job_dir: Path, model: str, progress_callback=None) -> str:
     chunks_dir = job_dir / "openrouter_chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
     chunk_pattern = chunks_dir / "chunk_%03d.mp3"
@@ -195,6 +219,8 @@ def transcribe_openrouter_chunked(audio_file: Path, job_dir: Path, model: str) -
         usage = response_data.get("usage")
         if usage:
             usage_parts.append({"chunk": chunk.name, "usage": usage})
+        if progress_callback:
+            progress_callback(index / len(chunks) * 100, f"Обработано частей: {index}/{len(chunks)}")
 
     transcript = normalize_transcript_text(" ".join(transcript_parts))
     _save_transcript_file(job_dir, transcript)

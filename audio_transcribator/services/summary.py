@@ -133,7 +133,7 @@ def write_summary_usage(job_dir: Path, usage_items: list[dict]) -> None:
     )
 
 
-def summarize(transcript: str, job_dir: Path) -> str | None:
+def summarize(transcript: str, job_dir: Path, progress_callback=None) -> str | None:
     if not transcript.strip():
         print("Transcript is empty, skipping summary")
         return None
@@ -160,13 +160,19 @@ def summarize(transcript: str, job_dir: Path) -> str | None:
                 f"{index}/{len(chunks)}.\n\n" + "\n\n".join(partial_summaries),
             )
         usage_items.append({"stage": "chunk", "chunk": index})
+        if progress_callback:
+            progress_callback(index / (len(chunks) + 1) * 100, f"Обработано частей: {index}/{len(chunks)}")
 
     partial_text = "\n\n".join(partial_summaries)
     final_prompt = FINAL_SUMMARY_PROMPT.format(partial_summaries=partial_text)
+    if progress_callback:
+        progress_callback(len(chunks) / (len(chunks) + 1) * 100, "Финальная сборка резюме")
     result = call_summary_model(client, final_prompt)
     write_text_atomic(job_dir / "summary.txt", result)
     usage_items.append({"stage": "final", "chunks": len(chunks)})
     write_summary_usage(job_dir, usage_items)
 
     print("Summary saved.")
+    if progress_callback:
+        progress_callback(100)
     return result

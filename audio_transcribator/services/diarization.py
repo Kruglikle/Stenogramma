@@ -144,6 +144,27 @@ def build_pipeline_kwargs(diarization_speakers: int | None = None) -> dict:
     return kwargs
 
 
+class DiarizationProgressHook:
+    def __init__(self, progress_callback):
+        self.progress_callback = progress_callback
+        self.steps = []
+
+    def __call__(self, step_name, step_artifact, file=None, total=None, completed=None):
+        if not self.progress_callback:
+            return
+        if step_name not in self.steps:
+            self.steps.append(step_name)
+        step_index = self.steps.index(step_name)
+        if completed is None or total in {None, 0}:
+            fraction = 0.0
+        else:
+            fraction = max(0.0, min(float(completed) / float(total), 1.0))
+
+        expected_steps = max(4, len(self.steps))
+        percent = min(((step_index + fraction) / expected_steps) * 100, 99)
+        self.progress_callback(percent, f"Этап pyannote: {step_name}")
+
+
 def speaker_sort_key(speaker: str) -> tuple[str, int]:
     match = re.search(r"(\d+)$", speaker)
     return (speaker[: match.start()] if match else speaker, int(match.group(1)) if match else 0)
@@ -255,12 +276,29 @@ def write_diarized_transcript(job_dir: Path, turns: list[dict]) -> None:
     write_text_atomic(job_dir / "diarized_transcript.txt", "\n".join(lines))
 
 
-def diarize(audio_file: Path, job_dir: Path, diarization_speakers: int | None = None) -> list[dict]:
+def diarize(
+    audio_file: Path,
+    job_dir: Path,
+    diarization_speakers: int | None = None,
+    progress_callback=None,
+) -> list[dict]:
     print("Running local pyannote speaker diarization 3.1...", flush=True)
+    if progress_callback:
+        progress_callback(1, "Загрузка локального pipeline pyannote")
     pipeline = load_pipeline()
-    diarization = pipeline(str(audio_file), **build_pipeline_kwargs(diarization_speakers))
+    if progress_callback:
+        progress_callback(5, "Запуск pyannote")
+    kwargs = build_pipeline_kwargs(diarization_speakers)
+    if progress_callback:
+        diarization = pipeline(str(audio_file), hook=DiarizationProgressHook(progress_callback), **kwargs)
+    else:
+        diarization = pipeline(str(audio_file), **kwargs)
+    if progress_callback:
+        progress_callback(99, "Сборка стенограммы со спикерами")
     turns = annotation_to_turns(diarization)
     write_diarization_outputs(job_dir, diarization, turns)
     write_diarized_transcript(job_dir, turns)
     print(f"Diarization completed: {len(turns)} speaker turns.", flush=True)
+    if progress_callback:
+        progress_callback(100)
     return turns
