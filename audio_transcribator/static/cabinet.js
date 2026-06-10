@@ -60,10 +60,11 @@
     event.preventDefault();
     if (form.dataset.submitting === "true") return;
     form.dataset.submitting = "true";
-    setUploadSubmitting(form, true);
 
+    // FormData must be created before disabling fields: disabled fields are not submitted.
     const formData = new FormData(form);
     const hasFile = Array.from(form.querySelectorAll('input[type="file"]')).some((input) => input.files.length > 0);
+    setUploadSubmitting(form, true);
     setUploadProgress(form, hasFile ? 0 : null, hasFile ? "Загрузка файла..." : "Отправляю задачу...");
 
     const xhr = new XMLHttpRequest();
