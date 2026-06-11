@@ -10,12 +10,17 @@ from audio_transcribator.services.diarization import diarize
 from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.jobs import (
     ensure_user_storage_quota,
-    load_job_progress,
     load_job_metadata,
     save_job_metadata,
-    save_job_progress,
     save_job_timing,
 )
+from audio_transcribator.services.pipeline_progress import (
+    ProgressPlan,
+    build_progress_plan,
+    mark_progress_failed,
+    run_progress_step as run_pipeline_progress_step,
+)
+from audio_transcribator.services.progress import save_job_progress
 from audio_transcribator.services.summary import summarize
 from audio_transcribator.services.transcription import transcribe
 from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPTION_MODEL_ID
@@ -23,84 +28,9 @@ from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPT
 
 T = TypeVar("T")
 
-STEP_WEIGHTS = {
-    "download": 10,
-    "prepare_audio": 10,
-    "transcription": 45,
-    "diarization": 25,
-    "summary": 10,
-}
-
-STEP_LABELS = {
-    "download": "Скачивание медиа",
-    "prepare_audio": "Подготовка аудио",
-    "transcription": "Транскрибация",
-    "diarization": "Диаризация",
-    "summary": "Резюме",
-}
-
-
-def build_progress_plan(source_is_url: bool, enable_diarization: bool, enable_summary: bool) -> dict[str, tuple[float, float]]:
-    steps = []
-    if source_is_url:
-        steps.append("download")
-    steps.extend(["prepare_audio", "transcription"])
-    if enable_diarization:
-        steps.append("diarization")
-    if enable_summary:
-        steps.append("summary")
-
-    total_weight = sum(STEP_WEIGHTS[step] for step in steps) or 1
-    current = 0.0
-    plan = {}
-    for step in steps:
-        width = STEP_WEIGHTS[step] / total_weight * 100
-        plan[step] = (current, width)
-        current += width
-    return plan
-
-
-def update_progress(
-    job_dir: Path,
-    plan: dict[str, tuple[float, float]],
-    step: str,
-    stage_percent: float,
-    detail: str | None = None,
-) -> None:
-    start, width = plan.get(step, (0, 0))
-    overall = start + width * max(0, min(100, stage_percent)) / 100
-    save_job_progress(job_dir, overall, step, label=STEP_LABELS.get(step), detail=detail)
-
-
-def run_progress_step(
-    job_dir: Path,
-    plan: dict[str, tuple[float, float]],
-    step: str,
-    action: Callable[[Callable[[float, str | None], None]], T],
-    skipped: Callable[[T], bool] | None = None,
-) -> T:
-    update_progress(job_dir, plan, step, 0)
-
-    def stage_progress(percent: float, detail: str | None = None) -> None:
-        update_progress(job_dir, plan, step, percent, detail=detail)
-
-    result = timed_step(job_dir, step, lambda: action(stage_progress), skipped=skipped)
-    update_progress(job_dir, plan, step, 100)
-    return result
-
-
-def mark_progress_failed(job_dir: Path, detail: str | None = None) -> None:
-    current = load_job_progress(job_dir, "failed")
-    save_job_progress(
-        job_dir,
-        current.get("percent", 0),
-        current.get("step", "failed"),
-        detail=detail or current.get("detail", ""),
-        status="failed",
-    )
-
 
 def timed_step(job_dir: Path, step: str, action: Callable[[], T], skipped: Callable[[T], bool] | None = None) -> T:
+    """Выполнить этап пайплайна и сохранить его длительность в metadata.json."""
     started = time.perf_counter()
     try:
         result = action()
@@ -122,6 +52,7 @@ def save_metadata(
     enable_diarization: bool | None = None,
     diarization_speakers: int | None = None,
 ) -> None:
+    """Локальная обертка worker-а, сохраняющая существующую схему metadata.json."""
     save_job_metadata(
         job_dir,
         input_file,
@@ -138,8 +69,9 @@ def maybe_diarize(
     job_dir: Path,
     enable_diarization: bool,
     diarization_speakers: int = 0,
-    progress_plan: dict[str, tuple[float, float]] | None = None,
+    progress_plan: ProgressPlan | None = None,
 ) -> None:
+    """Запустить диаризацию только если она включена в задаче и в общей конфигурации."""
     if not enable_diarization:
         return
     if not settings.enable_diarization:
@@ -147,7 +79,7 @@ def maybe_diarize(
         save_job_timing(job_dir, "diarization", 0, status="skipped")
         return
     if progress_plan:
-        run_progress_step(
+        run_pipeline_progress_step(
             job_dir,
             progress_plan,
             "diarization",
@@ -157,6 +89,7 @@ def maybe_diarize(
                 diarization_speakers=diarization_speakers,
                 progress_callback=progress,
             ),
+            timed_step,
             skipped=lambda result: not result,
         )
         return
@@ -173,18 +106,20 @@ def maybe_summarize(
     transcript: str,
     job_dir: Path,
     enable_summary: bool,
-    progress_plan: dict[str, tuple[float, float]] | None = None,
+    progress_plan: ProgressPlan | None = None,
 ) -> None:
+    """Запустить опциональное локальное резюме и явно отметить пропуск этапа."""
     if not enable_summary:
         print("Summary was disabled for this job.")
         save_job_timing(job_dir, "summary", 0, status="skipped")
         return
     if progress_plan:
-        run_progress_step(
+        run_pipeline_progress_step(
             job_dir,
             progress_plan,
             "summary",
             lambda progress: summarize(transcript, job_dir, progress_callback=progress),
+            timed_step,
             skipped=lambda result: result is None,
         )
         return
@@ -193,6 +128,7 @@ def maybe_summarize(
 
 
 def enforce_download_quota(job_dir: Path, input_file: Path) -> None:
+    """Удалить скачанный файл, если его сохранение превышает квоту пользователя."""
     metadata = load_job_metadata(job_dir)
     user_login = metadata.get("user_login")
     if not user_login:
@@ -206,6 +142,7 @@ def enforce_download_quota(job_dir: Path, input_file: Path) -> None:
 
 
 def process_edit(job_dir: Path, editor_model: str | None = None, transcript_source: str = "transcript") -> None:
+    """Фоновая точка входа для ИИ-редактуры уже готовой стенограммы."""
     transcript_file = job_dir / "diarized_transcript.txt" if transcript_source == "diarized" else job_dir / "stenogramma.txt"
     lock_path = job_dir / "editing.lock"
     if not transcript_file.exists():
@@ -232,6 +169,7 @@ def process_file(
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
 ) -> None:
+    """Обработать загруженный файл через те же этапы, которые ожидают API и UI."""
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
         job_dir,
@@ -246,13 +184,14 @@ def process_file(
     save_job_progress(job_dir, 0, "queued")
 
     try:
-        audio_file = run_progress_step(
+        audio_file = run_pipeline_progress_step(
             job_dir,
             progress_plan,
             "prepare_audio",
             lambda progress: prepare_audio(input_file, job_dir),
+            timed_step,
         )
-        transcript = run_progress_step(
+        transcript = run_pipeline_progress_step(
             job_dir,
             progress_plan,
             "transcription",
@@ -262,6 +201,7 @@ def process_file(
                 transcription_model_id=transcription_model_id,
                 progress_callback=progress,
             ),
+            timed_step,
         )
         maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
         maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
@@ -282,6 +222,7 @@ def process_url(
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
 ) -> None:
+    """Обработать ссылку на медиа, сохранив публичный формат результата задачи."""
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
         job_dir,
@@ -296,21 +237,23 @@ def process_url(
     save_job_progress(job_dir, 0, "queued")
 
     try:
-        input_file = run_progress_step(
+        input_file = run_pipeline_progress_step(
             job_dir,
             progress_plan,
             "download",
             lambda progress: download_media(source_url, job_dir),
+            timed_step,
         )
         enforce_download_quota(job_dir, input_file)
         save_metadata(job_dir, input_file, status="running", transcription_model_id=transcription_model_id)
-        audio_file = run_progress_step(
+        audio_file = run_pipeline_progress_step(
             job_dir,
             progress_plan,
             "prepare_audio",
             lambda progress: prepare_audio(input_file, job_dir),
+            timed_step,
         )
-        transcript = run_progress_step(
+        transcript = run_pipeline_progress_step(
             job_dir,
             progress_plan,
             "transcription",
@@ -320,6 +263,7 @@ def process_url(
                 transcription_model_id=transcription_model_id,
                 progress_callback=progress,
             ),
+            timed_step,
         )
         maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
         maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
@@ -333,6 +277,7 @@ def process_url(
 
 
 def main() -> None:
+    """CLI-точка входа, сохраненная для совместимости с process_audio_fast.py."""
     parser = argparse.ArgumentParser(description="Process uploaded audio/video file.")
     parser.add_argument("input_file", type=Path)
     parser.add_argument("job_dir", type=Path)

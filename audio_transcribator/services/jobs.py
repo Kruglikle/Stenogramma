@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -15,7 +15,9 @@ from audio_transcribator.services.transcription_models import (
     DEFAULT_TRANSCRIPTION_MODEL_ID,
     resolve_transcription_model,
 )
-from audio_transcribator.utils.files import tail, write_text_atomic
+from audio_transcribator.services.progress import load_job_progress
+from audio_transcribator.services.time_utils import utc_now_iso
+from audio_transcribator.utils.files import tail
 
 
 STATUS_LABELS = {
@@ -40,24 +42,6 @@ TIMING_STATUS_LABELS = {
     "failed": "ошибка",
     "skipped": "пропущено",
 }
-
-PROGRESS_LABELS = {
-    "queued": "Задача поставлена в очередь",
-    "upload": "Загрузка файла",
-    "download": "Скачивание медиа",
-    "prepare_audio": "Подготовка аудио",
-    "transcription": "Транскрибация",
-    "diarization": "Диаризация",
-    "summary": "Резюме",
-    "editing": "ИИ-редактура",
-    "completed": "Готово",
-    "failed": "Ошибка",
-}
-
-
-def utc_now_iso() -> str: 
-    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
-
 
 def format_duration(seconds: float | int | None) -> str:
     if seconds is None:
@@ -258,66 +242,6 @@ def save_job_timing(job_dir: Path, step: str, elapsed_seconds: float, status: st
     metadata["files"] = sorted(p.name for p in job_dir.iterdir() if p.is_file())
     with open(job_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
-
-
-def save_job_progress(
-    job_dir: Path,
-    percent: float,
-    step: str,
-    label: str | None = None,
-    detail: str | None = None,
-    status: str = "running",
-) -> None:
-    normalized = max(0, min(100, round(float(percent), 1)))
-    payload = {
-        "percent": normalized,
-        "step": step,
-        "label": label or PROGRESS_LABELS.get(step, step),
-        "detail": detail or "",
-        "status": status,
-        "updated_at": utc_now_iso(),
-    }
-    write_text_atomic(job_dir / "progress.json", json.dumps(payload, ensure_ascii=False, indent=2))
-
-
-def load_job_progress(job_dir: Path, status: str) -> dict:
-    progress_file = job_dir / "progress.json"
-    if progress_file.exists():
-        try:
-            progress = json.loads(progress_file.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            progress = {}
-    else:
-        progress = {}
-
-    if status in {"completed", "completed_without_summary"}:
-        progress.update(
-            {
-                "percent": 100,
-                "step": "completed",
-                "label": PROGRESS_LABELS["completed"],
-                "detail": "",
-                "status": "completed",
-            }
-        )
-    elif status == "failed":
-        progress.update(
-            {
-                "percent": progress.get("percent", 0),
-                "step": progress.get("step", "failed"),
-                "label": PROGRESS_LABELS["failed"],
-                "detail": progress.get("detail", ""),
-                "status": "failed",
-            }
-        )
-
-    return {
-        "percent": progress.get("percent", 0),
-        "step": progress.get("step", "queued"),
-        "label": progress.get("label", PROGRESS_LABELS["queued"]),
-        "detail": progress.get("detail", ""),
-        "status": progress.get("status", status),
-    }
 
 
 def load_job_metadata(job_dir: Path) -> dict:
