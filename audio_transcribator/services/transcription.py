@@ -175,6 +175,13 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
     settings.model_cache_dir.mkdir(parents=True, exist_ok=True)
     device = resolve_auto_device(settings.whisperx_device)
     print(f"Transcribing with WhisperX {model_name} on {device}...", flush=True)
+    asr_options = {
+        "multilingual": True,
+        "max_new_tokens": None,
+        "clip_timestamps": "0",
+        "hallucination_silence_threshold": None,
+        "hotwords": None,
+    }
 
     try:
         model = whisperx.load_model(
@@ -183,6 +190,7 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
             compute_type=settings.whisper_compute_type,
             language=settings.transcription_language,
             download_root=str(settings.model_cache_dir / "whisperx"),
+            asr_options=asr_options,
         )
     except TypeError:
         model = whisperx.load_model(
@@ -190,6 +198,7 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
             device,
             compute_type=settings.whisper_compute_type,
             download_root=str(settings.model_cache_dir / "whisperx"),
+            asr_options=asr_options,
         )
 
     result = model.transcribe(

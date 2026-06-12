@@ -7,7 +7,7 @@ psycopg[binary]
 numpy<2
 torch==2.1.2
 torchaudio==2.1.2
-faster-whisper==0.10.0
+faster-whisper==1.2.1
 whisperx==3.1.1
 transformers==4.39.3
 openai

@@ -187,7 +187,7 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 
 ## WhisperX large-v3
 
-В списке `Модель распознавания` доступен вариант `WhisperX large-v3`. Он использует пакет `whisperx==3.1.1` и `transformers==4.39.3`, потому что эта связка совместима с текущими `torch==2.1.2`, `torchaudio==2.1.2`, `numpy<2` и `pyannote.audio==3.1.1`. Последние версии WhisperX/Transformers требуют более новую связку `torch`/`numpy`/`pyannote` и могут сломать текущую локальную диаризацию.
+В списке `Модель распознавания` доступен вариант `WhisperX large-v3`. Он использует пакет `whisperx==3.1.1`, `faster-whisper==1.2.1` и `transformers==4.39.3`, потому что эта связка совместима с текущими `torch==2.1.2`, `torchaudio==2.1.2`, `numpy<2` и `pyannote.audio==3.1.1`. Последние версии WhisperX/Transformers требуют более новую связку `torch`/`numpy`/`pyannote` и могут сломать текущую локальную диаризацию.
 
 Настройки в `.env`:
 
