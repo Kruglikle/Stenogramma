@@ -72,6 +72,9 @@ class Settings:
         self.whisperx_model = os.getenv("WHISPERX_MODEL", "large-v3")
         self.whisperx_device = os.getenv("WHISPERX_DEVICE", "auto").strip().lower()
         self.whisperx_batch_size = int(os.getenv("WHISPERX_BATCH_SIZE", "16"))
+        self.whisperx_vad_model = Path(
+            os.getenv("WHISPERX_VAD_MODEL", self.model_cache_dir / "whisperx" / "whisperx-vad-segmentation.bin")
+        ).resolve()
         self.whisper_local_files_only = os.getenv("WHISPER_LOCAL_FILES_ONLY", "true").lower() in {
             "1",
             "true",

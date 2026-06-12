@@ -195,6 +195,7 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 WHISPERX_MODEL=large-v3
 WHISPERX_DEVICE=auto
 WHISPERX_BATCH_SIZE=16
+WHISPERX_VAD_MODEL=/app/data/model_cache/whisperx/whisperx-vad-segmentation.bin
 WHISPER_COMPUTE_TYPE=int8
 WHISPER_LOCAL_FILES_ONLY=true
 ```
@@ -210,10 +211,10 @@ sudo docker-compose run --rm api python -c "import importlib.metadata as m; prin
 ```bash
 sudo docker-compose run --rm \
   -e WHISPER_LOCAL_FILES_ONLY=false \
-  api python -c "from audio_transcribator.config import settings; from audio_transcribator.services.transcription import resolve_auto_device; import whisperx; whisperx.load_model(settings.whisperx_model, resolve_auto_device(settings.whisperx_device), compute_type=settings.whisper_compute_type, language=settings.transcription_language, download_root=str(settings.model_cache_dir / 'whisperx')); print('WhisperX model cached')"
+  api python -c "from audio_transcribator.config import settings; from audio_transcribator.services.transcription import resolve_auto_device, resolve_whisperx_vad_model; import whisperx; opts={'multilingual': True, 'max_new_tokens': None, 'clip_timestamps': '0', 'hallucination_silence_threshold': None, 'hotwords': None}; vad={'model_fp': str(resolve_whisperx_vad_model())}; whisperx.load_model(settings.whisperx_model, resolve_auto_device(settings.whisperx_device), compute_type=settings.whisper_compute_type, language=settings.transcription_language, download_root=str(settings.model_cache_dir / 'whisperx'), asr_options=opts, vad_options=vad); print('WhisperX model cached')"
 ```
 
-После того как модель окажется в `data/model_cache/whisperx`, верните `WHISPER_LOCAL_FILES_ONLY=true`. В runtime приложение будет работать из локального cache-каталога.
+После того как ASR-модель и VAD-файл окажутся в `data/model_cache/whisperx`, верните `WHISPER_LOCAL_FILES_ONLY=true`. В runtime приложение будет работать из локального cache-каталога.
 
 ## Локальная диаризация pyannote
 

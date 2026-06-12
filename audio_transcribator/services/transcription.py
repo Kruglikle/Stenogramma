@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import subprocess
 import time
@@ -14,6 +15,8 @@ from audio_transcribator.utils.files import write_text_atomic
 LOCAL_MODEL_REQUIRED_FILES = {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"}
 OPENROUTER_RETRY_STATUS_CODES = {502, 503, 504}
 OPENROUTER_MAX_ATTEMPTS = 3
+WHISPERX_VAD_MODEL_URL = "https://raw.githubusercontent.com/m-bain/whisperX/main/whisperx/assets/pytorch_model.bin"
+WHISPERX_VAD_MODEL_SHA256 = "0b5b3216d60a2d32fc086b47ea8c67589aaeb26b7e07fcbe620d6d0b83e209ea"
 
 
 def resolve_auto_device(device: str) -> str:
@@ -80,6 +83,37 @@ def resolve_whisper_model_source() -> str:
         )
 
     return configured_model
+
+
+def resolve_whisperx_vad_model() -> Path:
+    model_path = settings.whisperx_vad_model
+    if model_path.exists():
+        digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        if digest != WHISPERX_VAD_MODEL_SHA256:
+            raise RuntimeError(
+                f"Local WhisperX VAD model checksum mismatch: {model_path}. "
+                "Delete the file and download it again."
+            )
+        return model_path
+
+    if settings.whisper_local_files_only:
+        raise RuntimeError(
+            "Local WhisperX VAD model was not found. Download it once into "
+            f"{model_path} or set WHISPER_LOCAL_FILES_ONLY=false for the one-time cache step."
+        )
+
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading WhisperX VAD model: {WHISPERX_VAD_MODEL_URL}", flush=True)
+    request = Request(WHISPERX_VAD_MODEL_URL, headers={"User-Agent": "audio-transcribator"})
+    with urlopen(request, timeout=300) as response:
+        model_path.write_bytes(response.read())
+
+    digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    if digest != WHISPERX_VAD_MODEL_SHA256:
+        model_path.unlink(missing_ok=True)
+        raise RuntimeError("Downloaded WhisperX VAD model checksum mismatch. Please retry.")
+
+    return model_path
 
 
 def transcribe(
@@ -175,6 +209,7 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
     settings.model_cache_dir.mkdir(parents=True, exist_ok=True)
     device = resolve_auto_device(settings.whisperx_device)
     print(f"Transcribing with WhisperX {model_name} on {device}...", flush=True)
+    vad_options = {"model_fp": str(resolve_whisperx_vad_model())}
     asr_options = {
         "multilingual": True,
         "max_new_tokens": None,
@@ -191,6 +226,7 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
             language=settings.transcription_language,
             download_root=str(settings.model_cache_dir / "whisperx"),
             asr_options=asr_options,
+            vad_options=vad_options,
         )
     except TypeError:
         model = whisperx.load_model(
@@ -199,6 +235,7 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
             compute_type=settings.whisper_compute_type,
             download_root=str(settings.model_cache_dir / "whisperx"),
             asr_options=asr_options,
+            vad_options=vad_options,
         )
 
     result = model.transcribe(
