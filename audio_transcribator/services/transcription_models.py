@@ -38,7 +38,7 @@ def load_transcription_models() -> list[dict[str, Any]]:
             raise TranscriptionModelError("Each transcription model requires id and provider")
         if model_id in seen_ids:
             raise TranscriptionModelError(f"Duplicate transcription model id: {model_id}")
-        if provider != "local":
+        if provider not in {"local", "openrouter", "whisperx"}:
             raise TranscriptionModelError(f"Unsupported transcription model provider: {provider}")
 
         seen_ids.add(model_id)

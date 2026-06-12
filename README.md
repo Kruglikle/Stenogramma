@@ -185,6 +185,32 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 
 Резюме и ИИ-редактура идут через локальные Ollama-модели из `SUMMARY_MODEL` и `EDITOR_MODEL`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
 
+## WhisperX large-v3
+
+В списке `Модель распознавания` доступен вариант `WhisperX large-v3`. Он использует пакет `whisperx==3.1.1`, потому что эта версия совместима с текущими `torch==2.1.2`, `torchaudio==2.1.2`, `numpy<2` и `pyannote.audio==3.1.1`. Последние версии WhisperX требуют более новую связку `torch`/`numpy`/`pyannote` и могут сломать текущую локальную диаризацию.
+
+Настройки в `.env`:
+
+```env
+WHISPERX_MODEL=large-v3
+WHISPERX_DEVICE=auto
+WHISPERX_BATCH_SIZE=16
+WHISPER_COMPUTE_TYPE=int8
+WHISPER_LOCAL_FILES_ONLY=true
+```
+
+`WHISPERX_DEVICE=auto` выбирает CUDA, если она доступна, иначе CPU. На CPU `large-v3` может работать очень медленно; если памяти не хватает, уменьшите `WHISPERX_BATCH_SIZE`, например до `4` или `1`.
+
+Для первого скачивания модели на сервере можно временно разрешить загрузку из Hugging Face:
+
+```bash
+sudo docker-compose run --rm \
+  -e WHISPER_LOCAL_FILES_ONLY=false \
+  api python -c "from audio_transcribator.config import settings; from audio_transcribator.services.transcription import resolve_auto_device; import whisperx; whisperx.load_model(settings.whisperx_model, resolve_auto_device(settings.whisperx_device), compute_type=settings.whisper_compute_type, language=settings.transcription_language, download_root=str(settings.model_cache_dir / 'whisperx')); print('WhisperX model cached')"
+```
+
+После того как модель окажется в `data/model_cache/whisperx`, верните `WHISPER_LOCAL_FILES_ONLY=true`. В runtime приложение будет работать из локального cache-каталога.
+
 ## Локальная диаризация pyannote
 
 Диаризация остается опциональной: глобально она включается через `ENABLE_DIARIZATION=true`, а для каждой задачи отдельно через чекбокс `Включить диаризацию`.

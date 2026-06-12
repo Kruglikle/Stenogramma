@@ -69,6 +69,9 @@ class Settings:
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+        self.whisperx_model = os.getenv("WHISPERX_MODEL", "large-v3")
+        self.whisperx_device = os.getenv("WHISPERX_DEVICE", "auto").strip().lower()
+        self.whisperx_batch_size = int(os.getenv("WHISPERX_BATCH_SIZE", "16"))
         self.whisper_local_files_only = os.getenv("WHISPER_LOCAL_FILES_ONLY", "true").lower() in {
             "1",
             "true",
