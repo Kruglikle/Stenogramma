@@ -187,7 +187,7 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 
 ## WhisperX large-v3
 
-В списке `Модель распознавания` доступен вариант `WhisperX large-v3`. Он использует пакет `whisperx==3.1.1`, потому что эта версия совместима с текущими `torch==2.1.2`, `torchaudio==2.1.2`, `numpy<2` и `pyannote.audio==3.1.1`. Последние версии WhisperX требуют более новую связку `torch`/`numpy`/`pyannote` и могут сломать текущую локальную диаризацию.
+В списке `Модель распознавания` доступен вариант `WhisperX large-v3`. Он использует пакет `whisperx==3.1.1` и `transformers==4.39.3`, потому что эта связка совместима с текущими `torch==2.1.2`, `torchaudio==2.1.2`, `numpy<2` и `pyannote.audio==3.1.1`. Последние версии WhisperX/Transformers требуют более новую связку `torch`/`numpy`/`pyannote` и могут сломать текущую локальную диаризацию.
 
 Настройки в `.env`:
 
@@ -202,6 +202,10 @@ WHISPER_LOCAL_FILES_ONLY=true
 `WHISPERX_DEVICE=auto` выбирает CUDA, если она доступна, иначе CPU. На CPU `large-v3` может работать очень медленно; если памяти не хватает, уменьшите `WHISPERX_BATCH_SIZE`, например до `4` или `1`.
 
 Для первого скачивания модели на сервере можно временно разрешить загрузку из Hugging Face:
+
+```bash
+sudo docker-compose run --rm api python -c "import importlib.metadata as m; print(m.version('whisperx'))"
+```
 
 ```bash
 sudo docker-compose run --rm \
