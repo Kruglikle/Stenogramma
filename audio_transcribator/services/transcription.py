@@ -12,7 +12,6 @@ from audio_transcribator.services.transcription_models import resolve_transcript
 from audio_transcribator.utils.files import write_text_atomic
 
 
-LOCAL_MODEL_REQUIRED_FILES = {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"}
 OPENROUTER_RETRY_STATUS_CODES = {502, 503, 504}
 OPENROUTER_MAX_ATTEMPTS = 3
 WHISPERX_VAD_MODEL_URL = "https://raw.githubusercontent.com/m-bain/whisperX/main/whisperx/assets/pytorch_model.bin"
@@ -42,47 +41,6 @@ def format_timestamp(seconds: float) -> str:
 
 def normalize_transcript_text(text: str) -> str:
     return " ".join(text.split())
-
-
-def resolve_whisper_model_source() -> str:
-    configured_model = settings.whisper_model
-    configured_path = Path(configured_model)
-    if configured_path.exists():
-        return str(configured_path)
-
-    repo_name = configured_model
-    if "/" not in repo_name:
-        repo_name = f"Systran/faster-whisper-{configured_model}"
-
-    cache_repo_dir = settings.model_cache_dir / "faster-whisper" / f"models--{repo_name.replace('/', '--')}"
-    snapshots_dir = cache_repo_dir / "snapshots"
-    if not snapshots_dir.exists():
-        if settings.whisper_local_files_only:
-            raise RuntimeError(
-                "Local faster-whisper model was not found. Set WHISPER_MODEL to a local model directory "
-                "or pre-download the model into data/model_cache/faster-whisper. "
-                "Set WHISPER_LOCAL_FILES_ONLY=false only if Hugging Face downloads are allowed."
-            )
-        return configured_model
-
-    snapshots = sorted(
-        (path for path in snapshots_dir.iterdir() if path.is_dir()),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
-    for snapshot in snapshots:
-        if all((snapshot / filename).exists() for filename in LOCAL_MODEL_REQUIRED_FILES):
-            print(f"Using cached faster-whisper model: {snapshot}")
-            return str(snapshot)
-
-    if settings.whisper_local_files_only:
-        raise RuntimeError(
-            "Local faster-whisper model was not found. Set WHISPER_MODEL to a local model directory "
-            "or pre-download the model into data/model_cache/faster-whisper. "
-            "Set WHISPER_LOCAL_FILES_ONLY=false only if Hugging Face downloads are allowed."
-        )
-
-    return configured_model
 
 
 def resolve_whisperx_vad_model() -> Path:
@@ -135,7 +93,7 @@ def transcribe(
             progress_callback=progress_callback,
         )
 
-    return transcribe_local(audio_file, job_dir, progress_callback=progress_callback)
+    raise RuntimeError(f"Unsupported transcription provider: {model_config['provider']}")
 
 
 def _save_transcript_file(job_dir: Path, transcript: str) -> None:
@@ -147,54 +105,6 @@ def _save_transcript_segments(job_dir: Path, segments: list[dict]) -> None:
         json.dumps(segments, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-
-
-def transcribe_local(audio_file: Path, job_dir: Path, progress_callback=None) -> str:
-    from faster_whisper import WhisperModel
-
-    settings.model_cache_dir.mkdir(parents=True, exist_ok=True)
-    model = WhisperModel(
-        resolve_whisper_model_source(),
-        compute_type=settings.whisper_compute_type,
-        download_root=str(settings.model_cache_dir / "faster-whisper"),
-        local_files_only=settings.whisper_local_files_only,
-    )
-
-    segments, info = model.transcribe(
-        str(audio_file),
-        language=settings.transcription_language,
-        task="transcribe",
-    )
-    duration = float(getattr(info, "duration", 0) or 0)
-    segment_texts = []
-    transcript_segments = []
-    for segment in segments:
-        text = normalize_transcript_text(segment.text)
-        if text:
-            print(text, flush=True)
-            segment_texts.append(text)
-            transcript_segments.append(
-                {
-                    "start": float(segment.start),
-                    "end": float(segment.end),
-                    "text": text,
-                }
-            )
-            _save_transcript_file(job_dir, normalize_transcript_text(" ".join(segment_texts)))
-            _save_transcript_segments(job_dir, transcript_segments)
-            if progress_callback and duration > 0:
-                progress_callback(
-                    min(float(segment.end) / duration * 100, 99),
-                    f"Обработано {format_timestamp(float(segment.end))} из {format_timestamp(duration)}",
-                )
-
-    transcript = normalize_transcript_text(" ".join(segment_texts))
-    _save_transcript_file(job_dir, transcript)
-    _save_transcript_segments(job_dir, transcript_segments)
-    if progress_callback:
-        progress_callback(100)
-
-    return transcript
 
 
 def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progress_callback=None) -> str:

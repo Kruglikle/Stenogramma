@@ -25,23 +25,17 @@
           Ссылка на видео или аудио
           <input name="source_url" type="url" placeholder="https://example.com/video">
         </label>
-        <label>
-          Модель распознавания
-          <select name="transcription_model" required>
-            {% for model in transcription_models %}
-              <option value="{{ model.id }}" {% if model.id == selected_transcription_model %}selected{% endif %}>
-                {{ model.label }}
-              </option>
-            {% endfor %}
-          </select>
-        </label>
         <label class="checkbox-field">
-          <input name="enable_summary" type="checkbox" value="1" checked>
-          <span>Сделать резюме</span>
+          <input name="enable_transcription" type="checkbox" value="1">
+          <span>Сделать транскрибацию</span>
         </label>
         <label class="checkbox-field">
           <input name="enable_diarization" type="checkbox" value="1">
           <span>Включить диаризацию</span>
+        </label>
+        <label class="checkbox-field">
+          <input name="enable_summary" type="checkbox" value="1">
+          <span>Сделать резюме</span>
         </label>
         <label class="speaker-count-field">
           Количество говорящих для диаризации

@@ -53,6 +53,7 @@ def root():
 async def process_file(
     file: UploadFile = File(...),
     transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
+    enable_transcription: bool = Form(True),
     enable_summary: bool = Form(True),
     enable_diarization: bool = Form(False),
     diarization_speakers: int = Form(0),
@@ -64,11 +65,12 @@ async def process_file(
         return start_uploaded_file(
             file,
             transcription_model_id=transcription_model,
+            enable_transcription=enable_transcription,
             enable_summary=enable_summary,
             enable_diarization=enable_diarization,
             diarization_speakers=max(diarization_speakers, 0) if enable_diarization else 0,
         )
-    except TranscriptionModelError as exc:
+    except (TranscriptionModelError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
@@ -83,6 +85,7 @@ def process_url(
         return start_url(
             data.source_url,
             transcription_model_id=data.transcription_model,
+            enable_transcription=data.enable_transcription,
             enable_summary=data.enable_summary,
             enable_diarization=data.enable_diarization,
             diarization_speakers=max(data.diarization_speakers, 0) if data.enable_diarization else 0,

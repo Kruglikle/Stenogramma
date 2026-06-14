@@ -182,6 +182,7 @@ def save_job_metadata(
     transcription_model_id: str | None = None,
     user_login: str | None = None,
     title: str | None = None,
+    enable_transcription: bool | None = None,
     enable_summary: bool | None = None,
     enable_diarization: bool | None = None,
     diarization_speakers: int | None = None,
@@ -200,6 +201,9 @@ def save_job_metadata(
         "transcription_model": transcription_model_id
         or existing_metadata.get("transcription_model")
         or DEFAULT_TRANSCRIPTION_MODEL_ID,
+        "enable_transcription": enable_transcription
+        if enable_transcription is not None
+        else existing_metadata.get("enable_transcription", True),
         "enable_summary": enable_summary if enable_summary is not None else existing_metadata.get("enable_summary", True),
         "enable_diarization": enable_diarization
         if enable_diarization is not None
@@ -295,6 +299,7 @@ def build_job_result(job_id: str) -> dict:
         "files": files,
         "status": status,
         "status_label": STATUS_LABELS.get(status, status.title()),
+        "enable_transcription": metadata.get("enable_transcription", True),
         "enable_summary": metadata.get("enable_summary", True),
         "enable_diarization": metadata.get("enable_diarization", False),
         "timings": build_timing_result(metadata),
@@ -492,11 +497,16 @@ def start_uploaded_file(
     transcription_model_id: str | None = None,
     user_login: str | None = None,
     title: str | None = None,
+    enable_transcription: bool = True,
     enable_summary: bool = True,
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
 ) -> dict:
     transcription_model = resolve_transcription_model(transcription_model_id)
+    if not any((enable_transcription, enable_diarization, enable_summary)):
+        raise ValueError("At least one processing step must be enabled")
+    if enable_summary and not enable_transcription:
+        raise ValueError("Summary requires transcription to be enabled")
     upload_size = get_upload_size(file)
     ensure_user_storage_quota(user_login, upload_size)
     job_id = str(uuid4())
@@ -517,6 +527,7 @@ def start_uploaded_file(
         transcription_model_id=transcription_model["id"],
         user_login=user_login,
         title=title or safe_filename,
+        enable_transcription=enable_transcription,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
@@ -532,6 +543,8 @@ def start_uploaded_file(
         "--transcription-model",
         transcription_model["id"],
     ]
+    if not enable_transcription:
+        command.append("--no-transcription")
     if not enable_summary:
         command.append("--no-summary")
     if enable_diarization:
@@ -551,6 +564,7 @@ def start_uploaded_file(
         "status": "started",
         "job_id": job_id,
         "transcription_model": transcription_model["id"],
+        "enable_transcription": enable_transcription,
         "enable_summary": enable_summary,
         "enable_diarization": enable_diarization,
         "diarization_speakers": diarization_speakers,
@@ -563,6 +577,7 @@ def start_url(
     transcription_model_id: str | None = None,
     user_login: str | None = None,
     title: str | None = None,
+    enable_transcription: bool = True,
     enable_summary: bool = True,
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
@@ -572,6 +587,10 @@ def start_url(
         raise ValueError("Only http/https media links are supported")
 
     transcription_model = resolve_transcription_model(transcription_model_id)
+    if not any((enable_transcription, enable_diarization, enable_summary)):
+        raise ValueError("At least one processing step must be enabled")
+    if enable_summary and not enable_transcription:
+        raise ValueError("Summary requires transcription to be enabled")
     ensure_user_storage_quota(user_login, 0)
     job_id = str(uuid4())
     job_dir = settings.results_dir / job_id
@@ -584,6 +603,7 @@ def start_url(
         transcription_model_id=transcription_model["id"],
         user_login=user_login,
         title=title or source_url,
+        enable_transcription=enable_transcription,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
@@ -600,6 +620,8 @@ def start_url(
         "--transcription-model",
         transcription_model["id"],
     ]
+    if not enable_transcription:
+        command.append("--no-transcription")
     if not enable_summary:
         command.append("--no-summary")
     if enable_diarization:
@@ -619,6 +641,7 @@ def start_url(
         "status": "started",
         "job_id": job_id,
         "transcription_model": transcription_model["id"],
+        "enable_transcription": enable_transcription,
         "enable_summary": enable_summary,
         "enable_diarization": enable_diarization,
         "diarization_speakers": diarization_speakers,

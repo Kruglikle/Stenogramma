@@ -67,7 +67,6 @@ class Settings:
             os.getenv("TRANSCRIPTION_MODELS_FILE", self.base_dir / "audio_transcribator" / "transcription_models.json")
         ).resolve()
 
-        self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
         self.whisperx_model = os.getenv("WHISPERX_MODEL", "large-v3")
         self.whisperx_device = os.getenv("WHISPERX_DEVICE", "auto").strip().lower()

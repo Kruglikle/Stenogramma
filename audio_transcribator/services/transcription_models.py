@@ -6,7 +6,7 @@ from typing import Any
 from audio_transcribator.config import settings
 
 
-DEFAULT_TRANSCRIPTION_MODEL_ID = "local:faster-whisper"
+DEFAULT_TRANSCRIPTION_MODEL_ID = "local:whisperx-large"
 
 
 class TranscriptionModelError(ValueError):
@@ -38,7 +38,7 @@ def load_transcription_models() -> list[dict[str, Any]]:
             raise TranscriptionModelError("Each transcription model requires id and provider")
         if model_id in seen_ids:
             raise TranscriptionModelError(f"Duplicate transcription model id: {model_id}")
-        if provider not in {"local", "openrouter", "whisperx"}:
+        if provider not in {"openrouter", "whisperx"}:
             raise TranscriptionModelError(f"Unsupported transcription model provider: {provider}")
 
         seen_ids.add(model_id)
@@ -48,13 +48,7 @@ def load_transcription_models() -> list[dict[str, Any]]:
 
 
 def list_transcription_models() -> list[dict[str, Any]]:
-    models = []
-    for item in load_transcription_models():
-        model = dict(item)
-        if model["id"] == DEFAULT_TRANSCRIPTION_MODEL_ID:
-            model["label"] = f"{model.get('label', 'Локальная faster-whisper')} ({settings.whisper_model})"
-        models.append(model)
-    return models
+    return [dict(item) for item in load_transcription_models()]
 
 
 def resolve_transcription_model(model_id: str | None) -> dict[str, Any]:

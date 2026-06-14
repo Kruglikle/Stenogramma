@@ -48,3 +48,15 @@ def test_core_modules_importable() -> None:
     import audio_transcribator.services.transcription
 
     assert audio_transcribator.services.jobs.STATUS_LABELS
+
+
+def test_transcription_models_default_to_whisperx() -> None:
+    """Пользовательский выбор распознавания сведен к локальному WhisperX."""
+    from audio_transcribator.services.transcription_models import (
+        DEFAULT_TRANSCRIPTION_MODEL_ID,
+        list_transcription_models,
+    )
+
+    models = list_transcription_models()
+    assert DEFAULT_TRANSCRIPTION_MODEL_ID == "local:whisperx-large"
+    assert [model["id"] for model in models] == ["local:whisperx-large"]

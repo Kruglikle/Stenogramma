@@ -23,11 +23,7 @@ from audio_transcribator.services.jobs import (
     update_job_title,
     user_storage_quota,
 )
-from audio_transcribator.services.transcription_models import (
-    DEFAULT_TRANSCRIPTION_MODEL_ID,
-    TranscriptionModelError,
-    list_transcription_models,
-)
+from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPTION_MODEL_ID, TranscriptionModelError
 from audio_transcribator.utils.files import ALLOWED_DOWNLOADS
 
 
@@ -158,8 +154,6 @@ def upload_page(
         request,
         "upload.html",
         {
-            "transcription_models": list_transcription_models(),
-            "selected_transcription_model": DEFAULT_TRANSCRIPTION_MODEL_ID,
             "error": None,
             "diarization_speakers": "",
             **build_cabinet_context(username),
@@ -173,7 +167,7 @@ def upload_file(
     file: UploadFile | None = File(default=None),
     source_url: str = Form(default=""),
     title: str = Form(default=""),
-    transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
+    enable_transcription: bool = Form(default=False),
     enable_summary: bool = Form(default=False),
     enable_diarization: bool = Form(default=False),
     diarization_speakers: str = Form(default=""),
@@ -185,12 +179,17 @@ def upload_file(
     try:
         parsed_diarization_speakers = parse_optional_positive_int(diarization_speakers)
         clean_source_url = source_url.strip()
+        if not any((enable_transcription, enable_diarization, enable_summary)):
+            raise ValueError("Выберите хотя бы один этап обработки")
+        if enable_summary and not enable_transcription:
+            raise ValueError("Резюме можно сделать только вместе с транскрибацией")
         if file and file.filename:
             result = start_uploaded_file(
                 file,
-                transcription_model_id=transcription_model,
+                transcription_model_id=DEFAULT_TRANSCRIPTION_MODEL_ID,
                 user_login=username,
                 title=title,
+                enable_transcription=enable_transcription,
                 enable_summary=enable_summary,
                 enable_diarization=enable_diarization,
                 diarization_speakers=parsed_diarization_speakers if enable_diarization else 0,
@@ -198,9 +197,10 @@ def upload_file(
         elif clean_source_url:
             result = start_url(
                 clean_source_url,
-                transcription_model_id=transcription_model,
+                transcription_model_id=DEFAULT_TRANSCRIPTION_MODEL_ID,
                 user_login=username,
                 title=title,
+                enable_transcription=enable_transcription,
                 enable_summary=enable_summary,
                 enable_diarization=enable_diarization,
                 diarization_speakers=parsed_diarization_speakers if enable_diarization else 0,
@@ -212,8 +212,6 @@ def upload_file(
             request,
             "upload.html",
             {
-                "transcription_models": list_transcription_models(),
-                "selected_transcription_model": transcription_model,
                 "error": str(exc),
                 "diarization_speakers": diarization_speakers,
                 **build_cabinet_context(username),

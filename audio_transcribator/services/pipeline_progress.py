@@ -28,7 +28,12 @@ ProgressPlan = dict[str, tuple[float, float]]
 StageProgress = Callable[[float, str | None], None]
 
 
-def build_progress_plan(source_is_url: bool, enable_diarization: bool, enable_summary: bool) -> ProgressPlan:
+def build_progress_plan(
+    source_is_url: bool,
+    enable_transcription: bool,
+    enable_diarization: bool,
+    enable_summary: bool,
+) -> ProgressPlan:
     """Построить диапазоны общего прогресса для включенных этапов обработки.
 
     Веса намеренно приблизительные: они показывают движение пайплайна в UI,
@@ -37,7 +42,9 @@ def build_progress_plan(source_is_url: bool, enable_diarization: bool, enable_su
     steps = []
     if source_is_url:
         steps.append("download")
-    steps.extend(["prepare_audio", "transcription"])
+    steps.append("prepare_audio")
+    if enable_transcription:
+        steps.append("transcription")
     if enable_diarization:
         steps.append("diarization")
     if enable_summary:

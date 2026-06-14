@@ -1,6 +1,6 @@
 # Стенограмма
 
-FastAPI-сервис для обработки аудио- и видеофайлов: загрузка файла, извлечение аудио через `ffmpeg`, транскрибация через `faster-whisper`, генерация summary через LLM и скачивание результатов.
+FastAPI-сервис для обработки аудио- и видеофайлов: загрузка файла, извлечение аудио через `ffmpeg`, транскрибация через локальный `WhisperX`, генерация summary через LLM и скачивание результатов.
 
 ## Возможности
 
@@ -15,7 +15,7 @@ FastAPI-сервис для обработки аудио- и видеофайл
 - Token-based авторизация через `Authorization: Bearer <token>`.
 - Пользователи хранятся в PostgreSQL, пароль сохраняется в виде hash.
 - Поддержка аудио и видеоформатов, совместимых с `ffmpeg`.
-- Транскрибация через локальную `faster-whisper`.
+- Опциональная транскрибация через локальный `WhisperX large-v3`.
 - Выбор модели ИИ-редактуры: локальные `gemma3:4b`, `qwen3:8b` через Ollama.
 - Резюме стенограммы опционально генерируется локальной Ollama-моделью из `SUMMARY_MODEL`.
 - Диаризация опциональна и выполняется локально через `pyannote.audio` speaker-diarization 3.1; модели скачиваются один раз и затем используются из локального каталога.
@@ -86,7 +86,7 @@ audio_transcribator/
   models.py              # Pydantic-схемы
   services/
     audio.py             # ffmpeg и подготовка аудио
-    transcription.py     # faster-whisper
+    transcription.py     # WhisperX
     summary.py           # local Ollama summary
     editor.py            # ИИ-редактура стенограммы
     diarization.py       # local pyannote diarization
@@ -187,7 +187,7 @@ OLLAMA_BASE_URL=http://<server-ip>:11434
 
 ## WhisperX large-v3
 
-В списке `Модель распознавания` доступен вариант `WhisperX large-v3`. Он использует пакет `whisperx==3.1.1`, `faster-whisper==1.2.1` и `transformers==4.39.3`, потому что эта связка совместима с текущими `torch==2.1.2`, `torchaudio==2.1.2`, `numpy<2` и `pyannote.audio==3.1.1`. Последние версии WhisperX/Transformers требуют более новую связку `torch`/`numpy`/`pyannote` и могут сломать текущую локальную диаризацию.
+Пользователь может включить или выключить этап транскрибации в форме загрузки. Если транскрибация включена, приложение использует `WhisperX large-v3`. Пакет `faster-whisper==1.2.1` остается в зависимостях только как внутренний backend WhisperX, отдельного выбора faster-whisper в интерфейсе больше нет.
 
 Настройки в `.env`:
 
@@ -266,7 +266,7 @@ DIARIZATION_LOW_CONFIDENCE_RATIO=0.05
 - `USER_STORAGE_QUOTA_BYTES`
 - `DATA_RETENTION_DAYS`, `DATA_CLEANUP_INTERVAL_SECONDS`
 - `OLLAMA_BASE_URL`, `OLLAMA_API_KEY`, `SUMMARY_MODEL`, `SUMMARY_CHUNK_CHARS`, `EDITOR_MODEL`, `EDITOR_CHUNK_CHARS`, `EDITOR_TEMPERATURE`
-- `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`, `WHISPER_LOCAL_FILES_ONLY`
+- `WHISPER_COMPUTE_TYPE`, `WHISPER_LOCAL_FILES_ONLY`
 - `TRANSCRIPTION_MODELS_FILE`
 - `ENABLE_DIARIZATION`, `PYANNOTE_MODEL_DIR`, `PYANNOTE_PIPELINE_CONFIG`, `PYANNOTE_SEGMENTATION_MODEL`, `PYANNOTE_EMBEDDING_MODEL`, `PYANNOTE_DEVICE`
 - `DIARIZATION_SPEAKERS`, `DIARIZATION_MIN_SPEAKERS`, `DIARIZATION_MAX_SPEAKERS`, `DIARIZATION_MIN_TURN_SECONDS`, `DIARIZATION_MIN_SPEAKER_RATIO`, `DIARIZATION_LOW_CONFIDENCE_RATIO`

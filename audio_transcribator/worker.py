@@ -48,6 +48,7 @@ def save_metadata(
     input_file: Path | str,
     status: str = "completed",
     transcription_model_id: str | None = None,
+    enable_transcription: bool | None = None,
     enable_summary: bool | None = None,
     enable_diarization: bool | None = None,
     diarization_speakers: int | None = None,
@@ -58,6 +59,7 @@ def save_metadata(
         input_file,
         status,
         transcription_model_id=transcription_model_id,
+        enable_transcription=enable_transcription,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
@@ -165,22 +167,28 @@ def process_file(
     input_file: Path,
     job_dir: Path,
     transcription_model_id: str = DEFAULT_TRANSCRIPTION_MODEL_ID,
+    enable_transcription: bool = True,
     enable_summary: bool = True,
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
 ) -> None:
     """Обработать загруженный файл через те же этапы, которые ожидают API и UI."""
+    if not any((enable_transcription, enable_diarization, enable_summary)):
+        raise ValueError("At least one processing step must be enabled")
+    if enable_summary and not enable_transcription:
+        raise ValueError("Summary requires transcription to be enabled")
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
         job_dir,
         input_file,
         status="running",
         transcription_model_id=transcription_model_id,
+        enable_transcription=enable_transcription,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
     )
-    progress_plan = build_progress_plan(False, enable_diarization, enable_summary)
+    progress_plan = build_progress_plan(False, enable_transcription, enable_diarization, enable_summary)
     save_job_progress(job_dir, 0, "queued")
 
     try:
@@ -191,18 +199,22 @@ def process_file(
             lambda progress: prepare_audio(input_file, job_dir),
             timed_step,
         )
-        transcript = run_pipeline_progress_step(
-            job_dir,
-            progress_plan,
-            "transcription",
-            lambda progress: transcribe(
-                audio_file,
+        transcript = ""
+        if enable_transcription:
+            transcript = run_pipeline_progress_step(
                 job_dir,
-                transcription_model_id=transcription_model_id,
-                progress_callback=progress,
-            ),
-            timed_step,
-        )
+                progress_plan,
+                "transcription",
+                lambda progress: transcribe(
+                    audio_file,
+                    job_dir,
+                    transcription_model_id=transcription_model_id,
+                    progress_callback=progress,
+                ),
+                timed_step,
+            )
+        else:
+            save_job_timing(job_dir, "transcription", 0, status="skipped")
         maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
         maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
@@ -218,22 +230,28 @@ def process_url(
     source_url: str,
     job_dir: Path,
     transcription_model_id: str = DEFAULT_TRANSCRIPTION_MODEL_ID,
+    enable_transcription: bool = True,
     enable_summary: bool = True,
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
 ) -> None:
     """Обработать ссылку на медиа, сохранив публичный формат результата задачи."""
+    if not any((enable_transcription, enable_diarization, enable_summary)):
+        raise ValueError("At least one processing step must be enabled")
+    if enable_summary and not enable_transcription:
+        raise ValueError("Summary requires transcription to be enabled")
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
         job_dir,
         source_url,
         status="running",
         transcription_model_id=transcription_model_id,
+        enable_transcription=enable_transcription,
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
     )
-    progress_plan = build_progress_plan(True, enable_diarization, enable_summary)
+    progress_plan = build_progress_plan(True, enable_transcription, enable_diarization, enable_summary)
     save_job_progress(job_dir, 0, "queued")
 
     try:
@@ -245,7 +263,16 @@ def process_url(
             timed_step,
         )
         enforce_download_quota(job_dir, input_file)
-        save_metadata(job_dir, input_file, status="running", transcription_model_id=transcription_model_id)
+        save_metadata(
+            job_dir,
+            input_file,
+            status="running",
+            transcription_model_id=transcription_model_id,
+            enable_transcription=enable_transcription,
+            enable_summary=enable_summary,
+            enable_diarization=enable_diarization,
+            diarization_speakers=diarization_speakers,
+        )
         audio_file = run_pipeline_progress_step(
             job_dir,
             progress_plan,
@@ -253,18 +280,22 @@ def process_url(
             lambda progress: prepare_audio(input_file, job_dir),
             timed_step,
         )
-        transcript = run_pipeline_progress_step(
-            job_dir,
-            progress_plan,
-            "transcription",
-            lambda progress: transcribe(
-                audio_file,
+        transcript = ""
+        if enable_transcription:
+            transcript = run_pipeline_progress_step(
                 job_dir,
-                transcription_model_id=transcription_model_id,
-                progress_callback=progress,
-            ),
-            timed_step,
-        )
+                progress_plan,
+                "transcription",
+                lambda progress: transcribe(
+                    audio_file,
+                    job_dir,
+                    transcription_model_id=transcription_model_id,
+                    progress_callback=progress,
+                ),
+                timed_step,
+            )
+        else:
+            save_job_timing(job_dir, "transcription", 0, status="skipped")
         maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
         maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
         save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
@@ -283,6 +314,7 @@ def main() -> None:
     parser.add_argument("job_dir", type=Path)
     parser.add_argument("--source-url")
     parser.add_argument("--transcription-model", default=DEFAULT_TRANSCRIPTION_MODEL_ID)
+    parser.add_argument("--no-transcription", action="store_true")
     parser.add_argument("--no-summary", action="store_true")
     parser.add_argument("--diarization", action="store_true")
     parser.add_argument("--diarization-speakers", type=int, default=0)
@@ -297,6 +329,7 @@ def main() -> None:
             args.source_url,
             args.job_dir,
             transcription_model_id=args.transcription_model,
+            enable_transcription=not args.no_transcription,
             enable_summary=not args.no_summary,
             enable_diarization=args.diarization,
             diarization_speakers=max(args.diarization_speakers, 0),
@@ -306,6 +339,7 @@ def main() -> None:
             args.input_file,
             args.job_dir,
             transcription_model_id=args.transcription_model,
+            enable_transcription=not args.no_transcription,
             enable_summary=not args.no_summary,
             enable_diarization=args.diarization,
             diarization_speakers=max(args.diarization_speakers, 0),
