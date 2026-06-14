@@ -499,7 +499,7 @@ def start_uploaded_file(
     title: str | None = None,
     enable_transcription: bool = True,
     enable_summary: bool = True,
-    enable_diarization: bool = False,
+    enable_diarization: bool = True,
     diarization_speakers: int = 0,
 ) -> dict:
     transcription_model = resolve_transcription_model(transcription_model_id)
@@ -579,7 +579,7 @@ def start_url(
     title: str | None = None,
     enable_transcription: bool = True,
     enable_summary: bool = True,
-    enable_diarization: bool = False,
+    enable_diarization: bool = True,
     diarization_speakers: int = 0,
 ) -> dict:
     parsed_url = urlparse(source_url)

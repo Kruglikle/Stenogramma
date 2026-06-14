@@ -55,7 +55,7 @@ async def process_file(
     transcription_model: str = Form(DEFAULT_TRANSCRIPTION_MODEL_ID),
     enable_transcription: bool = Form(True),
     enable_summary: bool = Form(True),
-    enable_diarization: bool = Form(False),
+    enable_diarization: bool = Form(True),
     diarization_speakers: int = Form(0),
     authorization: str | None = Header(default=None),
 ):

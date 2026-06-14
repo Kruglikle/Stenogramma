@@ -1,8 +1,5 @@
 import hashlib
 import hmac
-import subprocess
-import sys
-import time
 
 from fastapi import APIRouter, Cookie, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -10,7 +7,6 @@ from fastapi.templating import Jinja2Templates
 
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
-from audio_transcribator.services.editor_models import list_editor_model_groups
 from audio_transcribator.services.jobs import (
     StorageQuotaExceeded,
     build_job_result,
@@ -65,27 +61,6 @@ def parse_optional_positive_int(value: str | int | None) -> int:
     except (TypeError, ValueError):
         return 0
     return max(parsed, 0)
-
-
-def start_edit_transcript_process(job_id: str, editor_model: str, transcript_source: str = "transcript") -> None:
-    job_dir = settings.results_dir / job_id
-    command = [
-        sys.executable,
-        "process_audio_fast.py",
-        "edit-transcript",
-        str(job_dir),
-        "--edit-model",
-        editor_model,
-        "--edit-source",
-        transcript_source,
-    ]
-    with open(job_dir / "run.log", "a", encoding="utf-8") as log_file:
-        subprocess.Popen(
-            command,
-            cwd=str(settings.base_dir),
-            stdout=log_file,
-            stderr=log_file,
-        )
 
 
 @router.get("", response_class=HTMLResponse)
@@ -167,9 +142,7 @@ def upload_file(
     file: UploadFile | None = File(default=None),
     source_url: str = Form(default=""),
     title: str = Form(default=""),
-    enable_transcription: bool = Form(default=False),
     enable_summary: bool = Form(default=False),
-    enable_diarization: bool = Form(default=False),
     diarization_speakers: str = Form(default=""),
     ui_token: str | None = Cookie(default=None),
     ui_user: str | None = Cookie(default=None),
@@ -179,20 +152,16 @@ def upload_file(
     try:
         parsed_diarization_speakers = parse_optional_positive_int(diarization_speakers)
         clean_source_url = source_url.strip()
-        if not any((enable_transcription, enable_diarization, enable_summary)):
-            raise ValueError("Выберите хотя бы один этап обработки")
-        if enable_summary and not enable_transcription:
-            raise ValueError("Резюме можно сделать только вместе с транскрибацией")
         if file and file.filename:
             result = start_uploaded_file(
                 file,
                 transcription_model_id=DEFAULT_TRANSCRIPTION_MODEL_ID,
                 user_login=username,
                 title=title,
-                enable_transcription=enable_transcription,
+                enable_transcription=True,
                 enable_summary=enable_summary,
-                enable_diarization=enable_diarization,
-                diarization_speakers=parsed_diarization_speakers if enable_diarization else 0,
+                enable_diarization=True,
+                diarization_speakers=parsed_diarization_speakers,
             )
         elif clean_source_url:
             result = start_url(
@@ -200,10 +169,10 @@ def upload_file(
                 transcription_model_id=DEFAULT_TRANSCRIPTION_MODEL_ID,
                 user_login=username,
                 title=title,
-                enable_transcription=enable_transcription,
+                enable_transcription=True,
                 enable_summary=enable_summary,
-                enable_diarization=enable_diarization,
-                diarization_speakers=parsed_diarization_speakers if enable_diarization else 0,
+                enable_diarization=True,
+                diarization_speakers=parsed_diarization_speakers,
             )
         else:
             raise ValueError("Загрузите файл или вставьте ссылку на медиа")
@@ -237,7 +206,7 @@ def result_page(
     if not can_access_job(username, job_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
-    visible_downloads = {"stenogramma.txt", "diarized_transcript.txt", "edited_transcript.txt", "summary.txt", "run.log"}
+    visible_downloads = {"stenogramma.txt", "diarized_transcript.txt", "summary.txt", "run.log"}
     downloads = [name for name in result["files"] if name in ALLOWED_DOWNLOADS and name in visible_downloads]
     return templates.TemplateResponse(
         request,
@@ -245,8 +214,6 @@ def result_page(
         {
             "result": result,
             "downloads": downloads,
-            "editor_model": settings.editor_model,
-            "editor_model_groups": list_editor_model_groups(),
             **build_cabinet_context(username),
         },
     )
@@ -279,44 +246,6 @@ def delete_result(
         raise HTTPException(status_code=404, detail="Job not found")
     delete_job(job_id)
     return RedirectResponse(url="/ui/upload", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/result/{job_id}/edit", response_class=HTMLResponse)
-def edit_result_transcript(
-    request: Request,
-    job_id: str,
-    editor_model: str = Form(default=""),
-    transcript_source: str = Form(default="transcript"),
-    ui_token: str | None = Cookie(default=None),
-    ui_user: str | None = Cookie(default=None),
-    ui_user_sig: str | None = Cookie(default=None),
-):
-    username = require_ui_auth(ui_token, ui_user, ui_user_sig)
-    try:
-        result = build_job_result(job_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if not can_access_job(username, job_id):
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    transcript_source = "diarized" if transcript_source == "diarized" else "transcript"
-    transcript = result.get("diarized_transcript") if transcript_source == "diarized" else result.get("transcript")
-    if not transcript:
-        raise HTTPException(status_code=400, detail="Transcript is not ready")
-    if result.get("status") not in {"completed", "completed_without_summary"}:
-        raise HTTPException(status_code=409, detail="Editing is available after processing is complete")
-
-    job_dir = settings.results_dir / job_id
-    lock_path = job_dir / "editing.lock"
-    if lock_path.exists() and time.time() - lock_path.stat().st_mtime > settings.ollama_request_timeout_seconds + 60:
-        lock_path.unlink(missing_ok=True)
-
-    if not lock_path.exists():
-        (job_dir / "editing_error.txt").unlink(missing_ok=True)
-        lock_path.write_text(str(time.time()), encoding="utf-8")
-        start_edit_transcript_process(job_id, editor_model, transcript_source)
-
-    return RedirectResponse(url=f"/ui/result/{job_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/download/{job_id}/{filename}")

@@ -8,17 +8,15 @@ FastAPI-сервис для обработки аудио- и видеофайл
 - `POST /add-user` — добавление нового пользователя администратором.
 - `POST /process` — загрузка аудио/видео и запуск фоновой обработки.
 - `GET /transcription-models` — список доступных моделей транскрибации.
-- `GET /editor-models` — список доступных моделей ИИ-редактуры.
 - `GET /result/{job_id}` — получение результата обработки по ID задачи.
-- `POST /result/{job_id}/edit` — ИИ-редактура готовой стенограммы через локальную Ollama-модель.
 - `GET /download/{job_id}/{filename}` — скачивание отдельных файлов результата.
 - Token-based авторизация через `Authorization: Bearer <token>`.
 - Пользователи хранятся в PostgreSQL, пароль сохраняется в виде hash.
 - Поддержка аудио и видеоформатов, совместимых с `ffmpeg`.
-- Опциональная транскрибация через локальный `WhisperX large-v3`.
+- Автоматическая транскрибация через локальный `WhisperX large-v3`.
 - Выбор модели ИИ-редактуры: локальные `gemma3:4b`, `qwen3:8b` через Ollama.
 - Резюме стенограммы опционально генерируется локальной Ollama-моделью из `SUMMARY_MODEL`.
-- Диаризация опциональна и выполняется локально через `pyannote.audio` speaker-diarization 3.1; модели скачиваются один раз и затем используются из локального каталога.
+- Диаризация выполняется автоматически через локальную `pyannote.audio` speaker-diarization 3.1; пользователь может указать точное число говорящих.
 
 ## Запуск локально
 
@@ -88,7 +86,6 @@ audio_transcribator/
     audio.py             # ffmpeg и подготовка аудио
     transcription.py     # WhisperX
     summary.py           # local Ollama summary
-    editor.py            # ИИ-редактура стенограммы
     diarization.py       # local pyannote diarization
   utils/files.py         # файловые helper'ы
   worker.py              # CLI/background pipeline
@@ -183,11 +180,11 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 OLLAMA_BASE_URL=http://<server-ip>:11434
 ```
 
-Резюме и ИИ-редактура идут через локальные Ollama-модели из `SUMMARY_MODEL` и `EDITOR_MODEL`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
+Резюме идет через локальную Ollama-модель из `SUMMARY_MODEL`. Для локальных моделей через Ollama ключ не нужен; `OLLAMA_API_KEY=ollama` используется как техническое значение для OpenAI-compatible endpoint Ollama.
 
 ## WhisperX large-v3
 
-Пользователь может включить или выключить этап транскрибации в форме загрузки. Если транскрибация включена, приложение использует `WhisperX large-v3`. Пакет `faster-whisper==1.2.1` остается в зависимостях только как внутренний backend WhisperX, отдельного выбора faster-whisper в интерфейсе больше нет.
+Транскрибация выполняется автоматически через `WhisperX large-v3`. Пакет `faster-whisper==1.2.1` остается в зависимостях только как внутренний backend WhisperX, отдельного выбора faster-whisper в интерфейсе нет.
 
 Настройки в `.env`:
 

@@ -2,27 +2,6 @@
 
 {% block title %}{{ result.title }} | Стенограмма{% endblock %}
 
-{% macro editor_menu(source) -%}
-  <form class="editor-menu" method="post" action="/ui/result/{{ result.job_id }}/edit" data-editor-form>
-    <input type="hidden" name="transcript_source" value="{{ source }}">
-    <details>
-      <summary role="button">ИИ-редактура</summary>
-      <div class="editor-menu-list">
-        {% for group in editor_model_groups %}
-          <div class="editor-menu-group">
-            <div class="editor-menu-title">{{ group.label }}</div>
-            {% for model in group.models %}
-              <button class="editor-menu-item" type="submit" name="editor_model" value="{{ model.id }}">
-                {{ model.label }}
-              </button>
-            {% endfor %}
-          </div>
-        {% endfor %}
-      </div>
-    </details>
-  </form>
-{%- endmacro %}
-
 {% block content %}
 <div class="workspace-layout">
   <div class="workspace-main">
@@ -48,9 +27,9 @@
         {% if downloads %}
           <div class="downloads">
             {% for filename in downloads %}
-              <a class="{% if filename == 'stenogramma.txt' or filename == 'diarized_transcript.txt' or filename == 'edited_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
+              <a class="{% if filename == 'stenogramma.txt' or filename == 'diarized_transcript.txt' or filename == 'summary.txt' %}primary-download{% endif %}" href="/ui/download/{{ result.job_id }}/{{ filename }}">
                 Скачать
-                {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'diarized_transcript.txt' %}стенограмму со спикерами{% elif filename == 'edited_transcript.txt' %}ИИ-редактуру{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
+                {% if filename == 'stenogramma.txt' %}стенограмму{% elif filename == 'diarized_transcript.txt' %}стенограмму со спикерами{% elif filename == 'summary.txt' %}резюме{% elif filename == 'run.log' %}лог{% else %}{{ filename }}{% endif %}
               </a>
             {% endfor %}
           </div>
@@ -105,13 +84,9 @@
         <div class="section-header compact-header">
           <div>
             <h2>Стенограмма со спикерами</h2>
-            <p class="muted">Модель редактора: {{ editor_model }}</p>
           </div>
           <div class="actions panel-actions">
             <a class="button-link secondary" href="/ui/download/{{ result.job_id }}/diarized_transcript.txt">Скачать стенограмму со спикерами</a>
-            {% if result.status in ["completed", "completed_without_summary"] %}
-              {{ editor_menu("diarized") }}
-            {% endif %}
           </div>
         </div>
         <pre>{{ result.diarized_transcript }}</pre>
@@ -134,41 +109,12 @@
         <div class="section-header compact-header">
           <div>
             <h2>Стенограмма</h2>
-            <p class="muted">Модель редактора: {{ editor_model }}</p>
           </div>
           <div class="actions panel-actions">
             <a class="button-link secondary" href="/ui/download/{{ result.job_id }}/stenogramma.txt">Скачать стенограмму</a>
-            {% if result.status in ["completed", "completed_without_summary"] %}
-              {{ editor_menu("transcript") }}
-            {% endif %}
           </div>
         </div>
-        {% if result.status not in ["completed", "completed_without_summary"] %}
-          <p class="muted editor-progress">ИИ-редактура станет доступна после завершения обработки.</p>
-        {% endif %}
-        {% if result.editing_in_progress %}
-          <p class="muted editor-progress">ИИ-редактура выполняется. Страница обновится автоматически.</p>
-        {% endif %}
-        {% if result.editor_error or editor_error %}
-          <p class="error editor-error">{{ result.editor_error or editor_error }}</p>
-        {% endif %}
         <pre>{{ result.transcript }}</pre>
-      </section>
-      {% endif %}
-    </div>
-
-    <div id="edited-transcript-panel">
-      {% if result.edited_transcript %}
-      <section class="panel">
-        <div class="section-header compact-header">
-          <div>
-            <h2>ИИ-редактура</h2>
-            {% if result.editing_timing %}
-              <p class="muted">Время редакции: {{ result.editing_timing.duration }}</p>
-            {% endif %}
-          </div>
-        </div>
-        <pre>{{ result.edited_transcript }}</pre>
       </section>
       {% endif %}
     </div>
@@ -203,31 +149,15 @@
 <script src="/static/cabinet.js?v=cabinet-2"></script>
 <script>
   (() => {
-    document.addEventListener("submit", (event) => {
-      const form = event.target.closest("[data-editor-form]");
-      if (!form) return;
-
-      form.querySelectorAll("button, summary").forEach((control) => {
-        control.setAttribute("aria-disabled", "true");
-      });
-
-      const submitter = event.submitter;
-      if (submitter) {
-        submitter.disabled = true;
-        submitter.textContent = "Редактирую...";
-      }
-    });
-
     const root = document.querySelector("[data-job-id]");
     if (!root) return;
 
     const jobId = root.dataset.jobId;
     const terminalStatuses = new Set(["completed", "completed_without_summary", "failed"]);
     let currentStatus = root.dataset.jobStatus;
-    let editingInProgress = Boolean(document.querySelector(".editor-progress"));
 
     const poll = async () => {
-      if (terminalStatuses.has(currentStatus) && !editingInProgress) return;
+      if (terminalStatuses.has(currentStatus)) return;
 
       try {
         const response = await fetch(`/ui/result/${jobId}`, {
@@ -248,7 +178,7 @@
           status.textContent = nextStatus.textContent;
         }
 
-        for (const id of ["downloads", "progress-panel", "timings-panel", "diarization-panel", "summary-panel", "transcript-panel", "edited-transcript-panel", "log-panel", "cabinet-sidebar"]) {
+        for (const id of ["downloads", "progress-panel", "timings-panel", "diarization-panel", "summary-panel", "transcript-panel", "log-panel", "cabinet-sidebar"]) {
           const current = document.getElementById(id);
           const next = doc.getElementById(id);
           if (current && next) {
@@ -257,7 +187,6 @@
         }
 
         currentStatus = nextRoot.dataset.jobStatus;
-        editingInProgress = Boolean(document.querySelector(".editor-progress"));
       } catch (error) {
         console.warn("Не удалось обновить результат", error);
       }
@@ -265,7 +194,7 @@
 
     const timer = window.setInterval(async () => {
       await poll();
-      if (terminalStatuses.has(currentStatus) && !editingInProgress) {
+      if (terminalStatuses.has(currentStatus)) {
         window.clearInterval(timer);
       }
     }, 5000);
