@@ -41,7 +41,13 @@ def test_core_modules_importable() -> None:
     """Основные service-модули должны импортироваться без загрузки больших ML-моделей."""
     import audio_transcribator.services.audio
     import audio_transcribator.services.diarization
+    import audio_transcribator.services.job_formatting
+    import audio_transcribator.services.job_launch
+    import audio_transcribator.services.job_metadata
+    import audio_transcribator.services.job_results
+    import audio_transcribator.services.job_storage
     import audio_transcribator.services.jobs
+    import audio_transcribator.services.pipeline_steps
     import audio_transcribator.services.pipeline_progress
     import audio_transcribator.services.progress
     import audio_transcribator.services.summary
