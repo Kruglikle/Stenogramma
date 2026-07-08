@@ -46,10 +46,10 @@
             <h2>Прогресс обработки</h2>
             <p class="muted">{{ result.progress.label }}{% if result.progress.detail %}: {{ result.progress.detail }}{% endif %}</p>
           </div>
-          <strong class="progress-percent">{{ result.progress.percent }}%</strong>
+          <strong class="progress-percent" data-progress-percent>{{ result.progress.percent }}%</strong>
         </div>
         <div class="task-progress-track" aria-label="Прогресс обработки">
-          <div class="task-progress-bar status-{{ result.progress.status }}" style="width: {{ result.progress.percent }}%"></div>
+          <div class="task-progress-bar status-{{ result.progress.status }}{% if result.progress.status == 'running' or result.progress.status == 'started' %} is-live{% endif %}" data-progress-bar style="width: {{ result.progress.percent }}%"></div>
         </div>
       </section>
     </div>
@@ -155,6 +155,58 @@
     const jobId = root.dataset.jobId;
     const terminalStatuses = new Set(["completed", "completed_without_summary", "failed"]);
     let currentStatus = root.dataset.jobStatus;
+    let displayedProgress = parseFloat(document.querySelector("[data-progress-percent]")?.textContent) || 0;
+    let progressAnimation = null;
+
+    const setProgress = (value) => {
+      const percent = Math.max(0, Math.min(100, value));
+      const percentText = document.querySelector("[data-progress-percent]");
+      const bar = document.querySelector("[data-progress-bar]");
+      if (percentText) percentText.textContent = `${percent.toFixed(1).replace(".0", "")}%`;
+      if (bar) bar.style.width = `${percent}%`;
+      displayedProgress = percent;
+    };
+
+    const animateProgressTo = (target) => {
+      const next = Math.max(displayedProgress, Math.max(0, Math.min(100, target)));
+      const start = displayedProgress;
+      const delta = next - start;
+      if (progressAnimation) window.cancelAnimationFrame(progressAnimation);
+      if (delta <= 0.05) {
+        setProgress(next);
+        return;
+      }
+
+      const startedAt = performance.now();
+      const duration = Math.min(4200, Math.max(900, delta * 90));
+      const tick = (now) => {
+        const t = Math.min((now - startedAt) / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        setProgress(start + delta * eased);
+        if (t < 1) {
+          progressAnimation = window.requestAnimationFrame(tick);
+        }
+      };
+      progressAnimation = window.requestAnimationFrame(tick);
+    };
+
+    const updateProgressPanel = (doc) => {
+      const currentPanel = document.getElementById("progress-panel");
+      const nextPanel = doc.getElementById("progress-panel");
+      if (!currentPanel || !nextPanel) return;
+
+      const currentLabel = currentPanel.querySelector(".muted");
+      const nextLabel = nextPanel.querySelector(".muted");
+      if (currentLabel && nextLabel) currentLabel.textContent = nextLabel.textContent;
+
+      const nextPercentText = nextPanel.querySelector("[data-progress-percent]");
+      const nextBar = nextPanel.querySelector("[data-progress-bar]");
+      const currentBar = currentPanel.querySelector("[data-progress-bar]");
+      if (currentBar && nextBar) currentBar.className = nextBar.className;
+
+      const target = parseFloat(nextPercentText?.textContent || "0");
+      animateProgressTo(Number.isFinite(target) ? target : displayedProgress);
+    };
 
     const poll = async () => {
       if (terminalStatuses.has(currentStatus)) return;
@@ -178,7 +230,9 @@
           status.textContent = nextStatus.textContent;
         }
 
-        for (const id of ["downloads", "progress-panel", "timings-panel", "diarization-panel", "summary-panel", "transcript-panel", "log-panel", "cabinet-sidebar"]) {
+        updateProgressPanel(doc);
+
+        for (const id of ["downloads", "timings-panel", "diarization-panel", "summary-panel", "transcript-panel", "log-panel", "cabinet-sidebar"]) {
           const current = document.getElementById(id);
           const next = doc.getElementById(id);
           if (current && next) {

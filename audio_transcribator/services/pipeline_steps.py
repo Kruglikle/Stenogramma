@@ -108,18 +108,25 @@ def maybe_summarize(
         print("Summary was disabled for this job.")
         save_job_timing(job_dir, "summary", 0, status="skipped")
         return
-    if progress_plan:
-        run_pipeline_progress_step(
-            job_dir,
-            progress_plan,
-            "summary",
-            lambda progress: summarize(transcript, job_dir, progress_callback=progress),
-            timed_step,
-            skipped=lambda result: result is None,
-        )
-        return
+    try:
+        if progress_plan:
+            run_pipeline_progress_step(
+                job_dir,
+                progress_plan,
+                "summary",
+                lambda progress: summarize(transcript, job_dir, progress_callback=progress),
+                timed_step,
+                skipped=lambda result: result is None,
+            )
+            return
 
-    timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
+        timed_step(job_dir, "summary", lambda: summarize(transcript, job_dir), skipped=lambda result: result is None)
+    except Exception as exc:
+        partial_summary = job_dir / "summary.txt"
+        if partial_summary.exists():
+            partial_summary.replace(job_dir / "partial_summary.txt")
+        (job_dir / "summary_error.txt").write_text(str(exc), encoding="utf-8")
+        print(f"Summary failed, continuing without summary: {exc}", flush=True)
 
 
 def enforce_download_quota(job_dir: Path, input_file: Path) -> None:

@@ -654,11 +654,32 @@ button:disabled {
 }
 
 .task-progress-bar {
+  position: relative;
   min-width: 2px;
   height: 100%;
+  overflow: hidden;
   background: linear-gradient(90deg, var(--accent-dark), var(--accent));
   border-radius: inherit;
-  transition: width 0.25s ease;
+  transition: width 0.9s ease;
+  will-change: width;
+}
+
+.task-progress-bar.is-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+  animation: task-progress-shine 1.7s ease-in-out infinite;
+  transform: translateX(-100%);
+}
+
+@keyframes task-progress-shine {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .task-progress-bar.status-failed {
