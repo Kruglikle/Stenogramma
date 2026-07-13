@@ -1,5 +1,10 @@
 import hashlib
 import hmac
+import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Cookie, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -25,6 +30,8 @@ from audio_transcribator.utils.files import ALLOWED_DOWNLOADS
 
 router = APIRouter(prefix="/ui", include_in_schema=False)
 templates = Jinja2Templates(directory=str(settings.base_dir / "audio_transcribator" / "templates"))
+BENCHMARK_DOWNLOADS = {"per_file_metrics.csv", "aggregate_metrics.json", "summary.md", "errors.jsonl", "run.log"}
+BENCHMARK_PROCESSES: dict[str, subprocess.Popen] = {}
 
 
 def sign_ui_user(username: str) -> str:
@@ -61,6 +68,106 @@ def parse_optional_positive_int(value: str | int | None) -> int:
     except (TypeError, ValueError):
         return 0
     return max(parsed, 0)
+
+
+def benchmark_root() -> Path:
+    root = settings.base_dir / "data" / "diarization_benchmarks"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def benchmark_run_dir(run_id: str) -> Path:
+    root = benchmark_root().resolve()
+    run_dir = (root / run_id).resolve()
+    if run_dir.parent != root:
+        raise HTTPException(status_code=400, detail="Invalid benchmark run id")
+    return run_dir
+
+
+def benchmark_status(run_id: str, run_dir: Path) -> str:
+    process = BENCHMARK_PROCESSES.get(run_id)
+    if process:
+        return_code = process.poll()
+        if return_code is None:
+            return "running"
+        return "completed" if return_code == 0 else "failed"
+    if (run_dir / "summary.md").exists():
+        return "completed"
+    if (run_dir / "run.log").exists():
+        return "unknown"
+    return "missing"
+
+
+def read_json_file(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def read_tail(path: Path, max_chars: int = 8000) -> str:
+    if not path.exists():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return text[-max_chars:]
+
+
+def list_benchmark_runs() -> list[dict]:
+    runs = []
+    for run_dir in benchmark_root().iterdir():
+        if not run_dir.is_dir():
+            continue
+        run_id = run_dir.name
+        metadata = read_json_file(run_dir / "web_run.json")
+        aggregate = read_json_file(run_dir / "aggregate_metrics.json")
+        files = [name for name in sorted(BENCHMARK_DOWNLOADS) if (run_dir / name).exists()]
+        runs.append(
+            {
+                "id": run_id,
+                "status": benchmark_status(run_id, run_dir),
+                "created_at": metadata.get("created_at", ""),
+                "command": metadata.get("command", []),
+                "aggregate": aggregate,
+                "files": files,
+                "mtime": run_dir.stat().st_mtime,
+            }
+        )
+    runs.sort(key=lambda item: item["mtime"], reverse=True)
+    return runs
+
+
+def active_benchmark_run() -> str | None:
+    for run_id, process in list(BENCHMARK_PROCESSES.items()):
+        if process.poll() is None:
+            return run_id
+    return None
+
+
+def validate_benchmark_options(limit: int, offset: int, device: str) -> tuple[int, int, str]:
+    limit = max(int(limit), 1)
+    offset = max(int(offset), 0)
+    if device not in {"cpu", "cuda", "auto"}:
+        device = "cpu"
+    return limit, offset, device
+
+
+def build_benchmark_context(error: str | None = None, selected_run_id: str | None = None) -> dict:
+    runs = list_benchmark_runs()
+    selected_run = next((run for run in runs if run["id"] == selected_run_id), runs[0] if runs else None)
+    log_tail = read_tail(benchmark_run_dir(selected_run["id"]) / "run.log") if selected_run else ""
+    return {
+        "error": error,
+        "runs": runs[:20],
+        "selected_run": selected_run,
+        "log_tail": log_tail,
+        "active_run_id": active_benchmark_run(),
+    }
 
 
 @router.get("", response_class=HTMLResponse)
@@ -188,6 +295,105 @@ def upload_file(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return RedirectResponse(url=f"/ui/result/{result['job_id']}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/benchmark", response_class=HTMLResponse)
+def benchmark_page(
+    request: Request,
+    run_id: str | None = None,
+    ui_token: str | None = Cookie(default=None),
+    ui_user: str | None = Cookie(default=None),
+    ui_user_sig: str | None = Cookie(default=None),
+):
+    require_ui_auth(ui_token, ui_user, ui_user_sig)
+    return templates.TemplateResponse(request, "benchmark.html", build_benchmark_context(selected_run_id=run_id))
+
+
+@router.post("/benchmark/start")
+def start_benchmark(
+    request: Request,
+    limit: int = Form(default=1),
+    offset: int = Form(default=0),
+    device: str = Form(default="cpu"),
+    save_artifacts: bool = Form(default=False),
+    ui_token: str | None = Cookie(default=None),
+    ui_user: str | None = Cookie(default=None),
+    ui_user_sig: str | None = Cookie(default=None),
+):
+    require_ui_auth(ui_token, ui_user, ui_user_sig)
+    active_run_id = active_benchmark_run()
+    if active_run_id:
+        return templates.TemplateResponse(
+            request,
+            "benchmark.html",
+            build_benchmark_context(
+                error=f"Benchmark is already running: {active_run_id}",
+                selected_run_id=active_run_id,
+            ),
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+    limit, offset, device = validate_benchmark_options(limit, offset, device)
+    run_id = datetime.now(timezone.utc).strftime("web_%Y%m%dT%H%M%S%fZ")
+    run_dir = benchmark_run_dir(run_id)
+    run_dir.mkdir(parents=True, exist_ok=False)
+
+    command = [
+        sys.executable,
+        "-m",
+        "audio_transcribator.benchmarks.diarization",
+        "--limit",
+        str(limit),
+        "--offset",
+        str(offset),
+        "--device",
+        device,
+        "--output-dir",
+        str(run_dir),
+    ]
+    if save_artifacts:
+        command.append("--save-artifacts")
+
+    metadata = {
+        "id": run_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "command": command,
+        "limit": limit,
+        "offset": offset,
+        "device": device,
+        "save_artifacts": save_artifacts,
+    }
+    (run_dir / "web_run.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    with open(run_dir / "run.log", "w", encoding="utf-8", errors="replace") as log_file:
+        log_file.write("Command: " + " ".join(command) + "\n\n")
+        log_file.flush()
+        process = subprocess.Popen(
+            command,
+            cwd=str(settings.base_dir),
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+    BENCHMARK_PROCESSES[run_id] = process
+    return RedirectResponse(url=f"/ui/benchmark?run_id={run_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/benchmark/download/{run_id}/{filename}")
+def download_benchmark_file(
+    run_id: str,
+    filename: str,
+    ui_token: str | None = Cookie(default=None),
+    ui_user: str | None = Cookie(default=None),
+    ui_user_sig: str | None = Cookie(default=None),
+):
+    require_ui_auth(ui_token, ui_user, ui_user_sig)
+    if filename not in BENCHMARK_DOWNLOADS:
+        raise HTTPException(status_code=403, detail="File is not allowed for download")
+
+    file_path = benchmark_run_dir(run_id) / filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path=str(file_path), filename=filename, media_type="application/octet-stream")
 
 
 @router.get("/result/{job_id}", response_class=HTMLResponse)

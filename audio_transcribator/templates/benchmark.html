@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Diarization benchmark | Stenogramma{% endblock %}
+
+{% block content %}
+<div class="workspace-layout">
+  <div class="workspace-main">
+    <section class="panel">
+      <div class="section-header">
+        <div>
+          <h1>Diarization benchmark</h1>
+          <p class="muted">Dataset: ivkond/synthetic-speech-diarization-ru</p>
+        </div>
+        <div class="actions">
+          <a class="button-link secondary" href="/ui/benchmark">Refresh</a>
+          <a class="button-link secondary" href="/ui/upload">Upload UI</a>
+        </div>
+      </div>
+
+      <form class="form benchmark-form" method="post" action="/ui/benchmark/start">
+        {% if error %}
+          <p class="error">{{ error }}</p>
+        {% endif %}
+        <div class="benchmark-controls">
+          <label>
+            Limit
+            <input name="limit" type="number" min="1" step="1" value="1">
+          </label>
+          <label>
+            Offset
+            <input name="offset" type="number" min="0" step="1" value="0">
+          </label>
+          <label>
+            Device
+            <select name="device">
+              <option value="cpu">cpu</option>
+              <option value="cuda">cuda</option>
+              <option value="auto">auto</option>
+            </select>
+          </label>
+        </div>
+        <label class="checkbox-field">
+          <input name="save_artifacts" type="checkbox" value="1">
+          <span>Save per-file artifacts</span>
+        </label>
+        <button type="submit" {% if active_run_id %}disabled{% endif %}>Start benchmark</button>
+        {% if active_run_id %}
+          <p class="muted">Running now: {{ active_run_id }}</p>
+        {% endif %}
+      </form>
+    </section>
+
+    {% if selected_run %}
+      <section class="panel">
+        <div class="section-header compact-header">
+          <div>
+            <h2>Run {{ selected_run.id }}</h2>
+            <p class="muted">{{ selected_run.created_at }}</p>
+          </div>
+          <span class="status-badge status-{{ selected_run.status }}">{{ selected_run.status }}</span>
+        </div>
+
+        {% if selected_run.aggregate %}
+          <div class="benchmark-metrics">
+            <div><span>Total files</span><strong>{{ selected_run.aggregate.total_files }}</strong></div>
+            <div><span>Successful</span><strong>{{ selected_run.aggregate.successful_files }}</strong></div>
+            <div><span>Failed</span><strong>{{ selected_run.aggregate.failed_files }}</strong></div>
+            <div><span>DER</span><strong>{{ selected_run.aggregate.aggregate_der }}</strong></div>
+            <div><span>JER</span><strong>{{ selected_run.aggregate.mean_jer }}</strong></div>
+            <div><span>RTF</span><strong>{{ selected_run.aggregate.rtf }}</strong></div>
+          </div>
+        {% endif %}
+
+        {% if selected_run.files %}
+          <div class="downloads">
+            {% for filename in selected_run.files %}
+              <a href="/ui/benchmark/download/{{ selected_run.id }}/{{ filename }}">{{ filename }}</a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="muted status-note">Reports will appear while the benchmark is running.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel diagnostics-panel">
+        <div class="section-header compact-header">
+          <h2>Run log</h2>
+        </div>
+        <pre class="log-output">{{ log_tail or "No log yet." }}</pre>
+      </section>
+    {% endif %}
+  </div>
+
+  <aside class="cabinet-sidebar" id="cabinet-sidebar">
+    <div class="cabinet-header">
+      <h2>Benchmark runs</h2>
+      <p class="muted">Latest 20</p>
+    </div>
+    {% if runs %}
+      <div class="cabinet-list">
+        {% for run in runs %}
+          <a class="cabinet-item status-left-{{ run.status }}" href="/ui/benchmark?run_id={{ run.id }}">
+            <span class="cabinet-item-main">
+              <span class="cabinet-title">{{ run.id }}</span>
+              <span class="cabinet-meta">{{ run.status }}{% if run.aggregate.total_files %} - {{ run.aggregate.successful_files }}/{{ run.aggregate.total_files }} ok{% endif %}</span>
+            </span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="cabinet-empty">
+        <p class="muted">No benchmark runs yet.</p>
+      </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if selected_run and selected_run.status == "running" %}
+<script>
+  window.setTimeout(() => window.location.reload(), 5000);
+</script>
+{% endif %}
+{% endblock %}

@@ -50,6 +50,16 @@ body {
   text-decoration: none;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-actions form {
+  margin: 0;
+}
+
 .page {
   width: min(1320px, calc(100% - 32px));
   margin: 28px auto;
@@ -143,6 +153,40 @@ body {
 .form {
   display: grid;
   gap: 14px;
+}
+
+.benchmark-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.benchmark-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.benchmark-metrics div {
+  display: grid;
+  gap: 4px;
+  min-height: 74px;
+  padding: 12px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.benchmark-metrics span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.benchmark-metrics strong {
+  overflow-wrap: anywhere;
+  font-size: 16px;
 }
 
 .title-form {
@@ -783,6 +827,17 @@ pre {
 @media (max-width: 640px) {
   .topbar,
   .section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .topbar-actions,
+  .benchmark-controls,
+  .benchmark-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-actions {
     align-items: stretch;
     flex-direction: column;
   }
