@@ -8,6 +8,7 @@ from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPT
 
 
 STATUS_LABELS = {
+    "queued": "В очереди",
     "started": "Запущено",
     "running": "В обработке",
     "completed": "Готово",

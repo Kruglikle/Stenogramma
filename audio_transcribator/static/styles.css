@@ -505,6 +505,7 @@ button:disabled {
   outline: none;
 }
 
+.status-left-queued,
 .status-left-running,
 .status-left-started {
   border-left-color: #d2a02a;
@@ -613,6 +614,7 @@ button:disabled {
   border-color: #b9dfc4;
 }
 
+.status-queued,
 .status-running,
 .status-started {
   color: var(--warning);

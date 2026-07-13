@@ -11,7 +11,8 @@ from fastapi import UploadFile
 from audio_transcribator.config import settings
 from audio_transcribator.services.job_metadata import save_job_metadata, save_job_timing
 from audio_transcribator.services.job_storage import ensure_user_storage_quota, get_upload_size
-from audio_transcribator.services.transcription_models import resolve_transcription_model
+from audio_transcribator.services.progress import save_job_progress
+from audio_transcribator.services.transcription_models import DEFAULT_TRANSCRIPTION_MODEL_ID, resolve_transcription_model
 
 
 def start_uploaded_file(
@@ -44,7 +45,7 @@ def start_uploaded_file(
     save_job_metadata(
         job_dir,
         input_path,
-        status="started",
+        status="queued",
         transcription_model_id=transcription_model["id"],
         user_login=user_login,
         title=title or safe_filename,
@@ -53,19 +54,9 @@ def start_uploaded_file(
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
     )
+    save_job_progress(job_dir, 0, "queued", status="queued")
     save_job_timing(job_dir, "upload", time.perf_counter() - started)
-    _launch_worker(
-        job_dir,
-        _build_worker_command(
-            input_arg=str(input_path),
-            job_dir=job_dir,
-            transcription_model_id=transcription_model["id"],
-            enable_transcription=enable_transcription,
-            enable_summary=enable_summary,
-            enable_diarization=enable_diarization,
-            diarization_speakers=diarization_speakers,
-        ),
-    )
+    _dispatch_pending_jobs()
 
     return _start_response(
         job_id,
@@ -74,7 +65,7 @@ def start_uploaded_file(
         enable_summary,
         enable_diarization,
         diarization_speakers,
-        "File uploaded and processing started",
+        "File uploaded and queued for processing",
     )
 
 
@@ -104,7 +95,7 @@ def start_url(
     save_job_metadata(
         job_dir,
         source_url,
-        status="started",
+        status="queued",
         transcription_model_id=transcription_model["id"],
         user_login=user_login,
         title=title or source_url,
@@ -113,19 +104,8 @@ def start_url(
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
     )
-    _launch_worker(
-        job_dir,
-        _build_worker_command(
-            input_arg="remote-media",
-            job_dir=job_dir,
-            transcription_model_id=transcription_model["id"],
-            enable_transcription=enable_transcription,
-            enable_summary=enable_summary,
-            enable_diarization=enable_diarization,
-            diarization_speakers=diarization_speakers,
-            source_url=source_url,
-        ),
-    )
+    save_job_progress(job_dir, 0, "queued", status="queued")
+    _dispatch_pending_jobs()
 
     return _start_response(
         job_id,
@@ -134,7 +114,7 @@ def start_url(
         enable_summary,
         enable_diarization,
         diarization_speakers,
-        "Media URL queued and processing started",
+        "Media URL queued for processing",
     )
 
 
@@ -177,6 +157,21 @@ def _build_worker_command(
     return command
 
 
+def build_worker_command_for_job(job_dir: Path, metadata: dict) -> list[str]:
+    input_file = str(metadata.get("input_file") or "")
+    is_remote = input_file.startswith(("http://", "https://"))
+    return _build_worker_command(
+        input_arg="remote-media" if is_remote else input_file,
+        job_dir=job_dir,
+        transcription_model_id=metadata.get("transcription_model") or DEFAULT_TRANSCRIPTION_MODEL_ID,
+        enable_transcription=metadata.get("enable_transcription", True),
+        enable_summary=metadata.get("enable_summary", True),
+        enable_diarization=metadata.get("enable_diarization", False),
+        diarization_speakers=int(metadata.get("diarization_speakers") or 0),
+        source_url=input_file if is_remote else None,
+    )
+
+
 def _launch_worker(job_dir: Path, command: list[str]) -> None:
     """Запустить обработчик в фоне и направить stdout/stderr в run.log."""
     with open(job_dir / "run.log", "w", encoding="utf-8") as log_file:
@@ -186,6 +181,28 @@ def _launch_worker(job_dir: Path, command: list[str]) -> None:
             stdout=log_file,
             stderr=log_file,
         )
+
+
+def launch_worker_for_job(job_dir: Path, metadata: dict) -> None:
+    save_job_metadata(
+        job_dir,
+        metadata.get("input_file") or "",
+        status="started",
+        transcription_model_id=metadata.get("transcription_model"),
+        user_login=metadata.get("user_login"),
+        title=metadata.get("title"),
+        enable_transcription=metadata.get("enable_transcription", True),
+        enable_summary=metadata.get("enable_summary", True),
+        enable_diarization=metadata.get("enable_diarization", False),
+        diarization_speakers=int(metadata.get("diarization_speakers") or 0),
+    )
+    _launch_worker(job_dir, build_worker_command_for_job(job_dir, metadata))
+
+
+def _dispatch_pending_jobs() -> None:
+    from audio_transcribator.services.job_queue import dispatch_queued_jobs
+
+    dispatch_queued_jobs()
 
 
 def _start_response(
@@ -199,7 +216,7 @@ def _start_response(
 ) -> dict:
     """Вернуть тот же формат ответа, который ожидают API и UI."""
     return {
-        "status": "started",
+        "status": "queued",
         "job_id": job_id,
         "transcription_model": transcription_model_id,
         "enable_transcription": enable_transcription,

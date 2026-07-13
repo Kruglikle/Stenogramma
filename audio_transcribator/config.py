@@ -33,6 +33,8 @@ class Settings:
         self.user_storage_quota_bytes = int(os.getenv("USER_STORAGE_QUOTA_BYTES", str(10 * 1024 * 1024 * 1024)))
         self.data_retention_days = int(os.getenv("DATA_RETENTION_DAYS", "7"))
         self.data_cleanup_interval_seconds = int(os.getenv("DATA_CLEANUP_INTERVAL_SECONDS", str(24 * 60 * 60)))
+        self.max_concurrent_jobs = int(os.getenv("MAX_CONCURRENT_JOBS", "2"))
+        self.job_dispatch_interval_seconds = float(os.getenv("JOB_DISPATCH_INTERVAL_SECONDS", "3"))
         self.api_token = os.getenv("API_TOKEN", "test-token")
         self.api_username = os.getenv("API_USERNAME", "admin")
         self.api_password = os.getenv("API_PASSWORD", "admin123")

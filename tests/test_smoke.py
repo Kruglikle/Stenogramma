@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -66,3 +67,43 @@ def test_transcription_models_default_to_whisperx() -> None:
     models = list_transcription_models()
     assert DEFAULT_TRANSCRIPTION_MODEL_ID == "local:whisperx-large"
     assert [model["id"] for model in models] == ["local:whisperx-large"]
+
+
+def test_job_queue_dispatches_fifo_with_concurrency_limit(tmp_path, monkeypatch) -> None:
+    from audio_transcribator.config import settings
+    from audio_transcribator.services import job_queue
+
+    def write_job(name: str, status: str, started_at: str) -> Path:
+        job_dir = tmp_path / name
+        job_dir.mkdir()
+        (job_dir / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "job_id": name,
+                    "status": status,
+                    "input_file": str(tmp_path / f"{name}.wav"),
+                    "started_at": started_at,
+                    "transcription_model": "local:whisperx-large",
+                    "enable_transcription": True,
+                    "enable_summary": False,
+                    "enable_diarization": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return job_dir
+
+    write_job("active", "running", "2026-01-01T00:00:00+00:00")
+    write_job("newer", "queued", "2026-01-01T00:02:00+00:00")
+    write_job("older", "queued", "2026-01-01T00:01:00+00:00")
+    launched = []
+
+    def fake_launch(job_dir: Path, metadata: dict) -> None:
+        launched.append(job_dir.name)
+
+    monkeypatch.setattr(settings, "results_dir", tmp_path)
+    monkeypatch.setattr(settings, "max_concurrent_jobs", 2)
+    monkeypatch.setattr(job_queue, "launch_worker_for_job", fake_launch)
+
+    assert job_queue.dispatch_queued_jobs() == ["older"]
+    assert launched == ["older"]
