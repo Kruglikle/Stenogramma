@@ -189,6 +189,34 @@ body {
   font-size: 16px;
 }
 
+.benchmark-help {
+  background: #f7fff6;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.help-grid p {
+  margin: 0;
+  padding: 12px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.help-grid strong {
+  color: var(--text);
+}
+
+.benchmark-downloads {
+  margin-top: 18px;
+}
+
 .title-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -833,7 +861,8 @@ pre {
 
   .topbar-actions,
   .benchmark-controls,
-  .benchmark-metrics {
+  .benchmark-metrics,
+  .help-grid {
     grid-template-columns: 1fr;
   }
 
