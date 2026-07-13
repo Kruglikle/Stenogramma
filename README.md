@@ -268,3 +268,37 @@ DIARIZATION_LOW_CONFIDENCE_RATIO=0.05
 - `ENABLE_DIARIZATION`, `PYANNOTE_MODEL_DIR`, `PYANNOTE_PIPELINE_CONFIG`, `PYANNOTE_SEGMENTATION_MODEL`, `PYANNOTE_EMBEDDING_MODEL`, `PYANNOTE_DEVICE`
 - `DIARIZATION_SPEAKERS`, `DIARIZATION_MIN_SPEAKERS`, `DIARIZATION_MAX_SPEAKERS`, `DIARIZATION_MIN_TURN_SECONDS`, `DIARIZATION_MIN_SPEAKER_RATIO`, `DIARIZATION_LOW_CONFIDENCE_RATIO`
 
+## Benchmark diarization
+
+The benchmark module evaluates the current diarization service on the Hugging Face dataset `ivkond/synthetic-speech-diarization-ru`. It does not change the public API: every file is passed to the existing `audio_transcribator.services.diarization.diarize` function, while reference and predicted turns are converted to `pyannote.core.Annotation`.
+
+Install `requirements.txt` and download the local pyannote models before running the real service benchmark. The dataset is loaded through Hugging Face `datasets`; its cache is stored under `data/model_cache/third_party/huggingface`.
+
+CPU:
+
+```bash
+python -m audio_transcribator.benchmarks.diarization --limit 10 --device cpu
+```
+
+GPU:
+
+```bash
+python -m audio_transcribator.benchmarks.diarization --limit 10 --device cuda
+```
+
+CLI options:
+
+- `--limit` - number of files to process;
+- `--offset` - number of dataset rows to skip;
+- `--device` - `cpu`, `cuda`, or `auto`;
+- `--output-dir` - report directory, default `data/diarization_benchmarks/<timestamp>`;
+- `--save-artifacts` - keep WAV, RTTM, JSON, and service artifacts per file under `artifacts/`.
+
+Output files:
+
+- `per_file_metrics.csv` - per-file DER, JER, Miss, False Alarm, Speaker Confusion, reference/predicted speaker counts, duration, processing time, RTF, device, status, and error text;
+- `aggregate_metrics.json` - aggregate DER components, mean DER/JER, total RTF, and speaker-count exact-match rate;
+- `summary.md` - short Markdown report;
+- `errors.jsonl` - per-file processing errors with traceback.
+
+DER is computed with `pyannote.metrics.diarization.DiarizationErrorRate(collar=0.0, skip_overlap=False)` as `(missed detection + false alarm + confusion) / total reference speech`. JER is computed with `pyannote.metrics.diarization.JaccardErrorRate` using the same collar and overlap policy. A single file failure is recorded in the reports and does not stop the benchmark.
