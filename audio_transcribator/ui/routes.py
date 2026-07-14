@@ -30,7 +30,30 @@ from audio_transcribator.utils.files import ALLOWED_DOWNLOADS
 
 router = APIRouter(prefix="/ui", include_in_schema=False)
 templates = Jinja2Templates(directory=str(settings.base_dir / "audio_transcribator" / "templates"))
-BENCHMARK_DOWNLOADS = {"per_file_metrics.csv", "aggregate_metrics.json", "summary.md", "errors.jsonl", "run.log"}
+BENCHMARK_TYPES = {
+    "diarization": {
+        "label": "Диаризация",
+        "module": "audio_transcribator.benchmarks.diarization",
+        "directory": "diarization_benchmarks",
+        "summary": "summary.md",
+        "aggregate": "aggregate_metrics.json",
+        "downloads": {"per_file_metrics.csv", "aggregate_metrics.json", "summary.md", "errors.jsonl", "run.log"},
+    },
+    "transcription": {
+        "label": "Транскрибация",
+        "module": "audio_transcribator.benchmarks.transcription",
+        "directory": "transcription_benchmarks",
+        "summary": "asr_summary.md",
+        "aggregate": "asr_aggregate_metrics.json",
+        "downloads": {
+            "asr_per_file_metrics.csv",
+            "asr_aggregate_metrics.json",
+            "asr_summary.md",
+            "asr_errors.jsonl",
+            "run.log",
+        },
+    },
+}
 BENCHMARK_PROCESSES: dict[str, subprocess.Popen] = {}
 
 
@@ -70,28 +93,32 @@ def parse_optional_positive_int(value: str | int | None) -> int:
     return max(parsed, 0)
 
 
-def benchmark_root() -> Path:
-    root = settings.base_dir / "data" / "diarization_benchmarks"
+def benchmark_config(benchmark_type: str) -> dict:
+    return BENCHMARK_TYPES.get(benchmark_type) or BENCHMARK_TYPES["diarization"]
+
+
+def benchmark_root(benchmark_type: str = "diarization") -> Path:
+    root = settings.base_dir / "data" / benchmark_config(benchmark_type)["directory"]
     root.mkdir(parents=True, exist_ok=True)
     return root
 
 
-def benchmark_run_dir(run_id: str) -> Path:
-    root = benchmark_root().resolve()
+def benchmark_run_dir(run_id: str, benchmark_type: str = "diarization") -> Path:
+    root = benchmark_root(benchmark_type).resolve()
     run_dir = (root / run_id).resolve()
     if run_dir.parent != root:
         raise HTTPException(status_code=400, detail="Invalid benchmark run id")
     return run_dir
 
 
-def benchmark_status(run_id: str, run_dir: Path) -> str:
+def benchmark_status(run_id: str, run_dir: Path, benchmark_type: str) -> str:
     process = BENCHMARK_PROCESSES.get(run_id)
     if process:
         return_code = process.poll()
         if return_code is None:
             return "running"
         return "completed" if return_code == 0 else "failed"
-    if (run_dir / "summary.md").exists():
+    if (run_dir / benchmark_config(benchmark_type)["summary"]).exists():
         return "completed"
     if (run_dir / "run.log").exists():
         return "unknown"
@@ -120,24 +147,27 @@ def read_tail(path: Path, max_chars: int = 8000) -> str:
 
 def list_benchmark_runs() -> list[dict]:
     runs = []
-    for run_dir in benchmark_root().iterdir():
-        if not run_dir.is_dir():
-            continue
-        run_id = run_dir.name
-        metadata = read_json_file(run_dir / "web_run.json")
-        aggregate = read_json_file(run_dir / "aggregate_metrics.json")
-        files = [name for name in sorted(BENCHMARK_DOWNLOADS) if (run_dir / name).exists()]
-        runs.append(
-            {
-                "id": run_id,
-                "status": benchmark_status(run_id, run_dir),
-                "created_at": metadata.get("created_at", ""),
-                "command": metadata.get("command", []),
-                "aggregate": aggregate,
-                "files": files,
-                "mtime": run_dir.stat().st_mtime,
-            }
-        )
+    for benchmark_type, config in BENCHMARK_TYPES.items():
+        for run_dir in benchmark_root(benchmark_type).iterdir():
+            if not run_dir.is_dir():
+                continue
+            run_id = run_dir.name
+            metadata = read_json_file(run_dir / "web_run.json")
+            aggregate = read_json_file(run_dir / config["aggregate"])
+            files = [name for name in sorted(config["downloads"]) if (run_dir / name).exists()]
+            runs.append(
+                {
+                    "id": run_id,
+                    "type": benchmark_type,
+                    "type_label": config["label"],
+                    "status": benchmark_status(run_id, run_dir, benchmark_type),
+                    "created_at": metadata.get("created_at", ""),
+                    "command": metadata.get("command", []),
+                    "aggregate": aggregate,
+                    "files": files,
+                    "mtime": run_dir.stat().st_mtime,
+                }
+            )
     runs.sort(key=lambda item: item["mtime"], reverse=True)
     return runs
 
@@ -160,13 +190,18 @@ def validate_benchmark_options(limit: int, offset: int, device: str) -> tuple[in
 def build_benchmark_context(error: str | None = None, selected_run_id: str | None = None) -> dict:
     runs = list_benchmark_runs()
     selected_run = next((run for run in runs if run["id"] == selected_run_id), runs[0] if runs else None)
-    log_tail = read_tail(benchmark_run_dir(selected_run["id"]) / "run.log") if selected_run else ""
+    log_tail = (
+        read_tail(benchmark_run_dir(selected_run["id"], selected_run["type"]) / "run.log")
+        if selected_run
+        else ""
+    )
     return {
         "error": error,
         "runs": runs[:20],
         "selected_run": selected_run,
         "log_tail": log_tail,
         "active_run_id": active_benchmark_run(),
+        "benchmark_types": BENCHMARK_TYPES,
     }
 
 
@@ -312,6 +347,7 @@ def benchmark_page(
 @router.post("/benchmark/start")
 def start_benchmark(
     request: Request,
+    benchmark_type: str = Form(default="diarization"),
     limit: int = Form(default=1),
     offset: int = Form(default=0),
     device: str = Form(default="cpu"),
@@ -333,15 +369,17 @@ def start_benchmark(
             status_code=status.HTTP_409_CONFLICT,
         )
 
+    benchmark_type = benchmark_type if benchmark_type in BENCHMARK_TYPES else "diarization"
+    config = benchmark_config(benchmark_type)
     limit, offset, device = validate_benchmark_options(limit, offset, device)
     run_id = datetime.now(timezone.utc).strftime("web_%Y%m%dT%H%M%S%fZ")
-    run_dir = benchmark_run_dir(run_id)
+    run_dir = benchmark_run_dir(run_id, benchmark_type)
     run_dir.mkdir(parents=True, exist_ok=False)
 
     command = [
         sys.executable,
         "-m",
-        "audio_transcribator.benchmarks.diarization",
+        config["module"],
         "--limit",
         str(limit),
         "--offset",
@@ -356,6 +394,8 @@ def start_benchmark(
 
     metadata = {
         "id": run_id,
+        "type": benchmark_type,
+        "type_label": config["label"],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "command": command,
         "limit": limit,
@@ -387,13 +427,14 @@ def download_benchmark_file(
     ui_user_sig: str | None = Cookie(default=None),
 ):
     require_ui_auth(ui_token, ui_user, ui_user_sig)
-    if filename not in BENCHMARK_DOWNLOADS:
-        raise HTTPException(status_code=403, detail="File is not allowed for download")
 
-    file_path = benchmark_run_dir(run_id) / filename
-    if not file_path.exists() or not file_path.is_file():
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(path=str(file_path), filename=filename, media_type="application/octet-stream")
+    for benchmark_type, config in BENCHMARK_TYPES.items():
+        if filename not in config["downloads"]:
+            continue
+        file_path = benchmark_run_dir(run_id, benchmark_type) / filename
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(path=str(file_path), filename=filename, media_type="application/octet-stream")
+    raise HTTPException(status_code=404, detail="File not found")
 
 
 @router.get("/result/{job_id}", response_class=HTMLResponse)
