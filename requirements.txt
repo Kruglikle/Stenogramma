@@ -5,6 +5,7 @@ jinja2
 pydantic
 psycopg[binary]
 datasets
+jiwer
 numpy<2
 torch==2.1.2
 torchaudio==2.1.2

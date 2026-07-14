@@ -302,3 +302,37 @@ Output files:
 - `errors.jsonl` - per-file processing errors with traceback.
 
 DER is computed with `pyannote.metrics.diarization.DiarizationErrorRate(collar=0.0, skip_overlap=False)` as `(missed detection + false alarm + confusion) / total reference speech`. JER is computed with `pyannote.metrics.diarization.JaccardErrorRate` using the same collar and overlap policy. A single file failure is recorded in the reports and does not stop the benchmark.
+
+## Benchmark transcription
+
+The transcription benchmark evaluates the current WhisperX transcription service on the same Hugging Face dataset. It compares the text predicted by the service with the reference text from `speakers[].text`.
+
+CPU:
+
+```bash
+python -m audio_transcribator.benchmarks.transcription --limit 10 --device cpu
+```
+
+GPU:
+
+```bash
+python -m audio_transcribator.benchmarks.transcription --limit 10 --device cuda
+```
+
+Useful options:
+
+- `--limit` - number of files to process;
+- `--offset` - number of dataset rows to skip;
+- `--device` - `cpu`, `cuda`, or `auto`;
+- `--output-dir` - report directory, default `data/transcription_benchmarks/<timestamp>`;
+- `--save-artifacts` - keep WAV, reference text, predicted text, and service artifacts per file;
+- `--transcription-model` - optional model id from `transcription_models.json`.
+
+Output files:
+
+- `asr_per_file_metrics.csv` - per-file WER, CER, normalized WER/CER, duration, processing time, RTF, device, status, and error text;
+- `asr_aggregate_metrics.json` - aggregate ASR metrics and total RTF;
+- `asr_summary.md` - short Markdown report;
+- `asr_errors.jsonl` - per-file errors with traceback.
+
+Raw WER/CER preserve punctuation and case differences. Normalized WER/CER lower-case text, replace `ё` with `е`, remove punctuation, and collapse whitespace.
