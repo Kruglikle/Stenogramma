@@ -44,7 +44,8 @@
         </div>
         <label class="checkbox-field">
           <input name="save_artifacts" type="checkbox" value="1" checked>
-          <span>Сохранять аудио, эталон и предсказание по каждому файлу</span>
+          <span>Артефакты</span>
+          <span class="tooltip" tabindex="0" aria-label="Артефакты - это подробные файлы по каждому аудио. Для диаризации сохраняются audio.wav, эталон и предсказание. Для транскрибации сохраняются audio.wav, эталонный текст и текст сервиса. Включайте для 1-10 файлов, для 50+ лучше выключать.">?</span>
         </label>
         <button type="submit" {% if active_run_id %}disabled{% endif %}>Запустить проверку</button>
         {% if active_run_id %}

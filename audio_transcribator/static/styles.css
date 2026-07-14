@@ -246,6 +246,48 @@ label {
   accent-color: var(--accent);
 }
 
+.tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: help;
+}
+
+.tooltip::after {
+  content: attr(aria-label);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 30;
+  display: none;
+  width: min(360px, calc(100vw - 48px));
+  padding: 10px 12px;
+  color: var(--text);
+  background: #fbfffb;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  text-align: left;
+  transform: translateX(-50%);
+}
+
+.tooltip:hover::after,
+.tooltip:focus::after {
+  display: block;
+}
+
 .speaker-count-field {
   max-width: 220px;
 }
