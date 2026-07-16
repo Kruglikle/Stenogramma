@@ -152,3 +152,9 @@ def test_torchaudio_backend_compatibility_shim(monkeypatch) -> None:
 
     assert callable(fake_torchaudio.set_audio_backend)
     assert fake_torchaudio.get_audio_backend() is None
+
+
+def test_sitecustomize_importable() -> None:
+    import sitecustomize
+
+    assert sitecustomize is not None
