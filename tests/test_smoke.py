@@ -138,3 +138,17 @@ def test_cpu_device_uses_cpu_compute_type(monkeypatch) -> None:
     assert normalize_processing_device("gpu") == "cuda"
     assert whisper_compute_type_for_device("cpu") == "int8"
     assert whisper_compute_type_for_device("cuda") == "float16"
+
+
+def test_torchaudio_backend_compatibility_shim(monkeypatch) -> None:
+    import types
+
+    from audio_transcribator.services.torch_compat import ensure_torchaudio_backend_api
+
+    fake_torchaudio = types.SimpleNamespace()
+    monkeypatch.setitem(__import__("sys").modules, "torchaudio", fake_torchaudio)
+
+    ensure_torchaudio_backend_api()
+
+    assert callable(fake_torchaudio.set_audio_backend)
+    assert fake_torchaudio.get_audio_backend() is None

@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 
 from audio_transcribator.config import settings
 from audio_transcribator.services.devices import resolve_processing_device, whisper_compute_type_for_device
+from audio_transcribator.services.torch_compat import ensure_torchaudio_backend_api
 from audio_transcribator.services.transcription_models import resolve_transcription_model
 from audio_transcribator.utils.files import write_text_atomic
 
@@ -109,6 +110,7 @@ def transcribe_whisperx(
     processing_device: str | None = None,
     progress_callback=None,
 ) -> str:
+    ensure_torchaudio_backend_api()
     try:
         import whisperx
     except ImportError as exc:

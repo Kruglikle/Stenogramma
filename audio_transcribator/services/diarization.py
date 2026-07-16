@@ -5,6 +5,7 @@ from pathlib import Path
 
 from audio_transcribator.config import settings
 from audio_transcribator.services.devices import resolve_processing_device
+from audio_transcribator.services.torch_compat import ensure_torchaudio_backend_api
 from audio_transcribator.utils.files import write_text_atomic
 
 
@@ -112,6 +113,7 @@ def ensure_local_pipeline_config() -> Path:
 
 def load_pipeline(processing_device: str | None = None):
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    ensure_torchaudio_backend_api()
     try:
         import torch
         from pyannote.audio import Pipeline
