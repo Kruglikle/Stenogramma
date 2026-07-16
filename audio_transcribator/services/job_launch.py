@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from audio_transcribator.config import settings
+from audio_transcribator.services.devices import normalize_processing_device
 from audio_transcribator.services.job_metadata import save_job_metadata, save_job_timing
 from audio_transcribator.services.job_storage import ensure_user_storage_quota, get_upload_size
 from audio_transcribator.services.progress import save_job_progress
@@ -24,9 +25,11 @@ def start_uploaded_file(
     enable_summary: bool = True,
     enable_diarization: bool = True,
     diarization_speakers: int = 0,
+    processing_device: str = "auto",
 ) -> dict:
     """Сохранить upload-файл и запустить обработку в отдельном процессе."""
     transcription_model = resolve_transcription_model(transcription_model_id)
+    selected_device = normalize_processing_device(processing_device)
     _validate_requested_steps(enable_transcription, enable_diarization, enable_summary)
     upload_size = get_upload_size(file)
     ensure_user_storage_quota(user_login, upload_size)
@@ -53,6 +56,7 @@ def start_uploaded_file(
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
+        processing_device=selected_device,
     )
     save_job_progress(job_dir, 0, "queued", status="queued")
     save_job_timing(job_dir, "upload", time.perf_counter() - started)
@@ -65,6 +69,7 @@ def start_uploaded_file(
         enable_summary,
         enable_diarization,
         diarization_speakers,
+        selected_device,
         "File uploaded and queued for processing",
     )
 
@@ -78,6 +83,7 @@ def start_url(
     enable_summary: bool = True,
     enable_diarization: bool = True,
     diarization_speakers: int = 0,
+    processing_device: str = "auto",
 ) -> dict:
     """Создать задачу для внешней http/https-ссылки и запустить worker."""
     parsed_url = urlparse(source_url)
@@ -85,6 +91,7 @@ def start_url(
         raise ValueError("Only http/https media links are supported")
 
     transcription_model = resolve_transcription_model(transcription_model_id)
+    selected_device = normalize_processing_device(processing_device)
     _validate_requested_steps(enable_transcription, enable_diarization, enable_summary)
     ensure_user_storage_quota(user_login, 0)
 
@@ -103,6 +110,7 @@ def start_url(
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
+        processing_device=selected_device,
     )
     save_job_progress(job_dir, 0, "queued", status="queued")
     _dispatch_pending_jobs()
@@ -114,6 +122,7 @@ def start_url(
         enable_summary,
         enable_diarization,
         diarization_speakers,
+        selected_device,
         "Media URL queued for processing",
     )
 
@@ -134,6 +143,7 @@ def _build_worker_command(
     enable_summary: bool,
     enable_diarization: bool,
     diarization_speakers: int,
+    processing_device: str,
     source_url: str | None = None,
 ) -> list[str]:
     """Собрать команду process_audio_fast.py, сохраняя старый CLI-контракт."""
@@ -146,6 +156,7 @@ def _build_worker_command(
     if source_url:
         command.extend(["--source-url", source_url])
     command.extend(["--transcription-model", transcription_model_id])
+    command.extend(["--processing-device", processing_device])
     if not enable_transcription:
         command.append("--no-transcription")
     if not enable_summary:
@@ -168,6 +179,7 @@ def build_worker_command_for_job(job_dir: Path, metadata: dict) -> list[str]:
         enable_summary=metadata.get("enable_summary", True),
         enable_diarization=metadata.get("enable_diarization", False),
         diarization_speakers=int(metadata.get("diarization_speakers") or 0),
+        processing_device=metadata.get("processing_device") or "auto",
         source_url=input_file if is_remote else None,
     )
 
@@ -195,6 +207,7 @@ def launch_worker_for_job(job_dir: Path, metadata: dict) -> None:
         enable_summary=metadata.get("enable_summary", True),
         enable_diarization=metadata.get("enable_diarization", False),
         diarization_speakers=int(metadata.get("diarization_speakers") or 0),
+        processing_device=metadata.get("processing_device") or "auto",
     )
     _launch_worker(job_dir, build_worker_command_for_job(job_dir, metadata))
 
@@ -212,6 +225,7 @@ def _start_response(
     enable_summary: bool,
     enable_diarization: bool,
     diarization_speakers: int,
+    processing_device: str,
     message: str,
 ) -> dict:
     """Вернуть тот же формат ответа, который ожидают API и UI."""
@@ -223,5 +237,6 @@ def _start_response(
         "enable_summary": enable_summary,
         "enable_diarization": enable_diarization,
         "diarization_speakers": diarization_speakers,
+        "processing_device": processing_device,
         "message": message,
     }

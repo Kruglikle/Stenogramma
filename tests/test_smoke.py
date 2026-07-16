@@ -107,3 +107,34 @@ def test_job_queue_dispatches_fifo_with_concurrency_limit(tmp_path, monkeypatch)
 
     assert job_queue.dispatch_queued_jobs() == ["older"]
     assert launched == ["older"]
+
+
+def test_worker_command_includes_processing_device(tmp_path) -> None:
+    from audio_transcribator.services.job_launch import build_worker_command_for_job
+
+    metadata = {
+        "input_file": str(tmp_path / "sample.wav"),
+        "transcription_model": "local:whisperx-large",
+        "enable_transcription": True,
+        "enable_summary": False,
+        "enable_diarization": True,
+        "diarization_speakers": 2,
+        "processing_device": "cuda",
+    }
+
+    command = build_worker_command_for_job(tmp_path / "job", metadata)
+
+    assert "--processing-device" in command
+    assert command[command.index("--processing-device") + 1] == "cuda"
+
+
+def test_cpu_device_uses_cpu_compute_type(monkeypatch) -> None:
+    from audio_transcribator.config import settings
+    from audio_transcribator.services.devices import normalize_processing_device, whisper_compute_type_for_device
+
+    monkeypatch.setattr(settings, "whisper_compute_type", "float16")
+    monkeypatch.setattr(settings, "whisper_cpu_compute_type", "int8")
+
+    assert normalize_processing_device("gpu") == "cuda"
+    assert whisper_compute_type_for_device("cpu") == "int8"
+    assert whisper_compute_type_for_device("cuda") == "float16"

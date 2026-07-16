@@ -8,6 +8,7 @@ from audio_transcribator.auth import check_add_user_auth, check_auth, verify_cre
 from audio_transcribator.config import settings
 from audio_transcribator.db import create_user
 from audio_transcribator.models import AddUserRequest, LoginRequest, ProcessUrlRequest
+from audio_transcribator.services.devices import normalize_processing_device
 from audio_transcribator.services.editor import edit_transcript
 from audio_transcribator.services.editor_models import list_editor_model_groups, resolve_editor_model
 from audio_transcribator.services.jobs import build_job_result, get_job_file, save_job_timing, start_uploaded_file, start_url
@@ -57,6 +58,7 @@ async def process_file(
     enable_summary: bool = Form(True),
     enable_diarization: bool = Form(True),
     diarization_speakers: int = Form(0),
+    processing_device: str = Form("auto"),
     authorization: str | None = Header(default=None),
 ):
     check_auth(authorization)
@@ -69,6 +71,7 @@ async def process_file(
             enable_summary=enable_summary,
             enable_diarization=enable_diarization,
             diarization_speakers=max(diarization_speakers, 0) if enable_diarization else 0,
+            processing_device=normalize_processing_device(processing_device),
         )
     except (TranscriptionModelError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -89,6 +92,7 @@ def process_url(
             enable_summary=data.enable_summary,
             enable_diarization=data.enable_diarization,
             diarization_speakers=max(data.diarization_speakers, 0) if data.enable_diarization else 0,
+            processing_device=normalize_processing_device(data.processing_device),
         )
     except (TranscriptionModelError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))

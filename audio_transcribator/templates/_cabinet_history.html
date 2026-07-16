@@ -25,7 +25,7 @@
         <article class="cabinet-item status-left-{{ item.status }}" data-history-url="/ui/result/{{ item.job_id }}" tabindex="0">
           <div class="cabinet-item-main">
             <a class="cabinet-title" href="/ui/result/{{ item.job_id }}">{{ item.title }}</a>
-            <span class="cabinet-meta">{{ item.status_label }}</span>
+            <span class="cabinet-meta">{{ item.status_label }} · {{ item.processing_device_label }}</span>
           </div>
           <div class="cabinet-item-actions">
             {% if item.download_file %}

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from audio_transcribator.services.audio import download_media, prepare_audio
+from audio_transcribator.services.devices import normalize_processing_device
 from audio_transcribator.services.pipeline_progress import (
     build_progress_plan,
     mark_progress_failed,
@@ -28,12 +29,14 @@ def process_file(
     enable_summary: bool = True,
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
+    processing_device: str = "auto",
 ) -> None:
     """Обработать загруженный файл через те же этапы, которые ожидают API и UI."""
     if not any((enable_transcription, enable_diarization, enable_summary)):
         raise ValueError("At least one processing step must be enabled")
     if enable_summary and not enable_transcription:
         raise ValueError("Summary requires transcription to be enabled")
+    selected_device = normalize_processing_device(processing_device)
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
         job_dir,
@@ -44,6 +47,7 @@ def process_file(
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
+        processing_device=selected_device,
     )
     progress_plan = build_progress_plan(False, enable_transcription, enable_diarization, enable_summary)
     save_job_progress(job_dir, 0, "queued")
@@ -66,20 +70,33 @@ def process_file(
                     audio_file,
                     job_dir,
                     transcription_model_id=transcription_model_id,
+                    processing_device=selected_device,
                     progress_callback=progress,
                 ),
                 timed_step,
             )
         else:
             save_job_timing(job_dir, "transcription", 0, status="skipped")
-        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
+        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, selected_device, progress_plan)
         maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
-        save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
+        save_metadata(
+            job_dir,
+            input_file,
+            status="completed",
+            transcription_model_id=transcription_model_id,
+            processing_device=selected_device,
+        )
         save_job_progress(job_dir, 100, "completed", status="completed")
         print("Processing completed.")
     except Exception as exc:
         mark_progress_failed(job_dir, str(exc))
-        save_metadata(job_dir, input_file, status="failed", transcription_model_id=transcription_model_id)
+        save_metadata(
+            job_dir,
+            input_file,
+            status="failed",
+            transcription_model_id=transcription_model_id,
+            processing_device=selected_device,
+        )
         raise
 
 
@@ -91,12 +108,14 @@ def process_url(
     enable_summary: bool = True,
     enable_diarization: bool = False,
     diarization_speakers: int = 0,
+    processing_device: str = "auto",
 ) -> None:
     """Обработать ссылку на медиа, сохранив публичный формат результата задачи."""
     if not any((enable_transcription, enable_diarization, enable_summary)):
         raise ValueError("At least one processing step must be enabled")
     if enable_summary and not enable_transcription:
         raise ValueError("Summary requires transcription to be enabled")
+    selected_device = normalize_processing_device(processing_device)
     job_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
         job_dir,
@@ -107,6 +126,7 @@ def process_url(
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
+        processing_device=selected_device,
     )
     progress_plan = build_progress_plan(True, enable_transcription, enable_diarization, enable_summary)
     save_job_progress(job_dir, 0, "queued")
@@ -129,6 +149,7 @@ def process_url(
             enable_summary=enable_summary,
             enable_diarization=enable_diarization,
             diarization_speakers=diarization_speakers,
+            processing_device=selected_device,
         )
         audio_file = run_pipeline_progress_step(
             job_dir,
@@ -147,20 +168,33 @@ def process_url(
                     audio_file,
                     job_dir,
                     transcription_model_id=transcription_model_id,
+                    processing_device=selected_device,
                     progress_callback=progress,
                 ),
                 timed_step,
             )
         else:
             save_job_timing(job_dir, "transcription", 0, status="skipped")
-        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, progress_plan)
+        maybe_diarize(audio_file, job_dir, enable_diarization, diarization_speakers, selected_device, progress_plan)
         maybe_summarize(transcript, job_dir, enable_summary, progress_plan)
-        save_metadata(job_dir, input_file, status="completed", transcription_model_id=transcription_model_id)
+        save_metadata(
+            job_dir,
+            input_file,
+            status="completed",
+            transcription_model_id=transcription_model_id,
+            processing_device=selected_device,
+        )
         save_job_progress(job_dir, 100, "completed", status="completed")
         print("Processing completed.")
     except Exception as exc:
         mark_progress_failed(job_dir, str(exc))
-        save_metadata(job_dir, source_url, status="failed", transcription_model_id=transcription_model_id)
+        save_metadata(
+            job_dir,
+            source_url,
+            status="failed",
+            transcription_model_id=transcription_model_id,
+            processing_device=selected_device,
+        )
         raise
 
 
@@ -175,6 +209,7 @@ def main() -> None:
     parser.add_argument("--no-summary", action="store_true")
     parser.add_argument("--diarization", action="store_true")
     parser.add_argument("--diarization-speakers", type=int, default=0)
+    parser.add_argument("--processing-device", choices=("auto", "cpu", "cuda", "gpu"), default="auto")
     parser.add_argument("--edit-model")
     parser.add_argument("--edit-source", default="transcript")
     args = parser.parse_args()
@@ -190,6 +225,7 @@ def main() -> None:
             enable_summary=not args.no_summary,
             enable_diarization=args.diarization,
             diarization_speakers=max(args.diarization_speakers, 0),
+            processing_device=args.processing_device,
         )
     else:
         process_file(
@@ -200,6 +236,7 @@ def main() -> None:
             enable_summary=not args.no_summary,
             enable_diarization=args.diarization,
             diarization_speakers=max(args.diarization_speakers, 0),
+            processing_device=args.processing_device,
         )
 
 

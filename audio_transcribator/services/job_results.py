@@ -15,6 +15,14 @@ from audio_transcribator.services.progress import load_job_progress
 from audio_transcribator.utils.files import tail
 
 
+DEVICE_LABELS = {
+    "auto": "Авто",
+    "cpu": "CPU",
+    "cuda": "GPU",
+    "gpu": "GPU",
+}
+
+
 def resolve_status(metadata: dict, files: list[str], log_tail: str) -> str:
     """Определить статус задачи по metadata, файлам и хвосту лога."""
     status = metadata.get("status")
@@ -50,6 +58,11 @@ def build_job_result(job_id: str) -> dict:
         "enable_transcription": metadata.get("enable_transcription", True),
         "enable_summary": metadata.get("enable_summary", True),
         "enable_diarization": metadata.get("enable_diarization", False),
+        "processing_device": metadata.get("processing_device", "auto"),
+        "processing_device_label": DEVICE_LABELS.get(
+            metadata.get("processing_device", "auto"),
+            metadata.get("processing_device", "auto"),
+        ),
         "timings": build_timing_result(metadata),
         "progress": load_job_progress(job_dir, status),
     }
@@ -113,6 +126,11 @@ def list_user_jobs(user_login: str, limit: int = 40) -> list[dict]:
                 "status_label": STATUS_LABELS.get(status, status.title()),
                 "started_at": metadata.get("started_at") or "",
                 "finished_at": metadata.get("finished_at") or "",
+                "processing_device": metadata.get("processing_device", "auto"),
+                "processing_device_label": DEVICE_LABELS.get(
+                    metadata.get("processing_device", "auto"),
+                    metadata.get("processing_device", "auto"),
+                ),
                 "download_file": choose_history_download(files),
             }
         )

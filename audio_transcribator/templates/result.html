@@ -10,6 +10,7 @@
         <div class="result-title-block">
           <h1>{{ result.title }}</h1>
           <p class="muted">ID задачи: {{ result.job_id }}</p>
+          <p class="muted">Устройство: {{ result.processing_device_label }}</p>
         </div>
         <div class="actions result-actions">
           <span id="job-status" class="status-badge status-{{ result.status }}">{{ result.status_label }}</span>

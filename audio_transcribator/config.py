@@ -70,8 +70,10 @@ class Settings:
         ).resolve()
 
         self.whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+        self.whisper_cpu_compute_type = os.getenv("WHISPER_CPU_COMPUTE_TYPE", "int8")
         self.whisperx_model = os.getenv("WHISPERX_MODEL", "large-v3")
         self.whisperx_device = os.getenv("WHISPERX_DEVICE", "auto").strip().lower()
+        self.processing_device_default = os.getenv("PROCESSING_DEVICE_DEFAULT", self.whisperx_device).strip().lower()
         self.whisperx_batch_size = int(os.getenv("WHISPERX_BATCH_SIZE", "16"))
         self.whisperx_vad_model = Path(
             os.getenv("WHISPERX_VAD_MODEL", self.model_cache_dir / "whisperx" / "whisperx-vad-segmentation.bin")

@@ -62,6 +62,7 @@ def dispatch_queued_jobs() -> list[str]:
                     enable_summary=metadata.get("enable_summary", True),
                     enable_diarization=metadata.get("enable_diarization", False),
                     diarization_speakers=int(metadata.get("diarization_speakers") or 0),
+                    processing_device=metadata.get("processing_device") or "auto",
                 )
                 (job_dir / "queue_error.txt").write_text(str(exc), encoding="utf-8")
                 continue

@@ -45,6 +45,7 @@ def save_metadata(
     enable_summary: bool | None = None,
     enable_diarization: bool | None = None,
     diarization_speakers: int | None = None,
+    processing_device: str | None = None,
 ) -> None:
     """Локальная обертка worker-а, сохраняющая существующую схему metadata.json."""
     save_job_metadata(
@@ -56,6 +57,7 @@ def save_metadata(
         enable_summary=enable_summary,
         enable_diarization=enable_diarization,
         diarization_speakers=diarization_speakers,
+        processing_device=processing_device,
     )
 
 
@@ -64,6 +66,7 @@ def maybe_diarize(
     job_dir: Path,
     enable_diarization: bool,
     diarization_speakers: int = 0,
+    processing_device: str | None = None,
     progress_plan: ProgressPlan | None = None,
 ) -> None:
     """Запустить диаризацию только если она включена в задаче и в общей конфигурации."""
@@ -82,6 +85,7 @@ def maybe_diarize(
                 audio_file,
                 job_dir,
                 diarization_speakers=diarization_speakers,
+                processing_device=processing_device,
                 progress_callback=progress,
             ),
             timed_step,
@@ -92,7 +96,7 @@ def maybe_diarize(
     timed_step(
         job_dir,
         "diarization",
-        lambda: diarize(audio_file, job_dir, diarization_speakers=diarization_speakers),
+        lambda: diarize(audio_file, job_dir, diarization_speakers=diarization_speakers, processing_device=processing_device),
         skipped=lambda result: not result,
     )
 

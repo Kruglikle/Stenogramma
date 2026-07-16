@@ -18,3 +18,4 @@ class ProcessUrlRequest(BaseModel):
     enable_summary: bool = True
     enable_diarization: bool = True
     diarization_speakers: int = 0
+    processing_device: str = "auto"

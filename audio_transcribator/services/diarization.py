@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 
 from audio_transcribator.config import settings
+from audio_transcribator.services.devices import resolve_processing_device
 from audio_transcribator.utils.files import write_text_atomic
 
 
@@ -109,7 +110,7 @@ def ensure_local_pipeline_config() -> Path:
     return config_path
 
 
-def load_pipeline():
+def load_pipeline(processing_device: str | None = None):
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
     try:
         import torch
@@ -121,9 +122,7 @@ def load_pipeline():
     print(f"Loading local pyannote pipeline: {config_path}", flush=True)
     pipeline = Pipeline.from_pretrained(str(config_path))
 
-    device_name = settings.pyannote_device
-    if device_name == "auto":
-        device_name = "cuda" if torch.cuda.is_available() else "cpu"
+    device_name = resolve_processing_device(processing_device, settings.pyannote_device)
     if device_name:
         pipeline.to(torch.device(device_name))
         print(f"Pyannote diarization device: {device_name}", flush=True)
@@ -346,12 +345,13 @@ def diarize(
     audio_file: Path,
     job_dir: Path,
     diarization_speakers: int | None = None,
+    processing_device: str | None = None,
     progress_callback=None,
 ) -> list[dict]:
     print("Running local pyannote speaker diarization 3.1...", flush=True)
     if progress_callback:
         progress_callback(1, "Загрузка локального pipeline pyannote")
-    pipeline = load_pipeline()
+    pipeline = load_pipeline(processing_device=processing_device)
     if progress_callback:
         progress_callback(5, "Запуск pyannote")
     kwargs = build_pipeline_kwargs(diarization_speakers)

@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from audio_transcribator.auth import verify_credentials
 from audio_transcribator.config import settings
+from audio_transcribator.services.devices import default_processing_device, normalize_processing_device
 from audio_transcribator.services.jobs import (
     StorageQuotaExceeded,
     build_job_result,
@@ -91,6 +92,20 @@ def parse_optional_positive_int(value: str | int | None) -> int:
     except (TypeError, ValueError):
         return 0
     return max(parsed, 0)
+
+
+def upload_template_context(
+    username: str,
+    error: str | None = None,
+    diarization_speakers: str = "",
+    processing_device: str | None = None,
+) -> dict:
+    return {
+        "error": error,
+        "diarization_speakers": diarization_speakers,
+        "processing_device": processing_device or default_processing_device(),
+        **build_cabinet_context(username),
+    }
 
 
 def benchmark_config(benchmark_type: str) -> dict:
@@ -270,11 +285,7 @@ def upload_page(
     return templates.TemplateResponse(
         request,
         "upload.html",
-        {
-            "error": None,
-            "diarization_speakers": "",
-            **build_cabinet_context(username),
-        },
+        upload_template_context(username),
     )
 
 
@@ -286,6 +297,7 @@ def upload_file(
     title: str = Form(default=""),
     enable_summary: bool = Form(default=False),
     diarization_speakers: str = Form(default=""),
+    processing_device: str = Form(default="auto"),
     ui_token: str | None = Cookie(default=None),
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
@@ -293,6 +305,7 @@ def upload_file(
     username = require_ui_auth(ui_token, ui_user, ui_user_sig)
     try:
         parsed_diarization_speakers = parse_optional_positive_int(diarization_speakers)
+        selected_device = normalize_processing_device(processing_device)
         clean_source_url = source_url.strip()
         if file and file.filename:
             result = start_uploaded_file(
@@ -304,6 +317,7 @@ def upload_file(
                 enable_summary=enable_summary,
                 enable_diarization=True,
                 diarization_speakers=parsed_diarization_speakers,
+                processing_device=selected_device,
             )
         elif clean_source_url:
             result = start_url(
@@ -315,6 +329,7 @@ def upload_file(
                 enable_summary=enable_summary,
                 enable_diarization=True,
                 diarization_speakers=parsed_diarization_speakers,
+                processing_device=selected_device,
             )
         else:
             raise ValueError("Загрузите файл или вставьте ссылку на медиа")
@@ -322,11 +337,12 @@ def upload_file(
         return templates.TemplateResponse(
             request,
             "upload.html",
-            {
-                "error": str(exc),
-                "diarization_speakers": diarization_speakers,
-                **build_cabinet_context(username),
-            },
+            upload_template_context(
+                username,
+                error=str(exc),
+                diarization_speakers=diarization_speakers,
+                processing_device=processing_device,
+            ),
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return RedirectResponse(url=f"/ui/result/{result['job_id']}", status_code=status.HTTP_303_SEE_OTHER)

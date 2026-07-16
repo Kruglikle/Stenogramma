@@ -8,6 +8,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from audio_transcribator.config import settings
+from audio_transcribator.services.devices import resolve_processing_device, whisper_compute_type_for_device
 from audio_transcribator.services.transcription_models import resolve_transcription_model
 from audio_transcribator.utils.files import write_text_atomic
 
@@ -19,15 +20,7 @@ WHISPERX_VAD_MODEL_SHA256 = "0b5b3216d60a2d32fc086b47ea8c67589aaeb26b7e07fcbe620
 
 
 def resolve_auto_device(device: str) -> str:
-    if device != "auto":
-        return device
-
-    try:
-        import torch
-
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    except Exception:
-        return "cpu"
+    return resolve_processing_device(device, settings.whisperx_device)
 
 
 def format_timestamp(seconds: float) -> str:
@@ -78,6 +71,7 @@ def transcribe(
     audio_file: Path,
     job_dir: Path,
     transcription_model_id: str | None = None,
+    processing_device: str | None = None,
     progress_callback=None,
 ) -> str:
     model_config = resolve_transcription_model(transcription_model_id)
@@ -90,6 +84,7 @@ def transcribe(
             audio_file,
             job_dir,
             model_config.get("model") or settings.whisperx_model,
+            processing_device=processing_device,
             progress_callback=progress_callback,
         )
 
@@ -107,7 +102,13 @@ def _save_transcript_segments(job_dir: Path, segments: list[dict]) -> None:
     )
 
 
-def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progress_callback=None) -> str:
+def transcribe_whisperx(
+    audio_file: Path,
+    job_dir: Path,
+    model_name: str,
+    processing_device: str | None = None,
+    progress_callback=None,
+) -> str:
     try:
         import whisperx
     except ImportError as exc:
@@ -117,8 +118,9 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
         ) from exc
 
     settings.model_cache_dir.mkdir(parents=True, exist_ok=True)
-    device = resolve_auto_device(settings.whisperx_device)
-    print(f"Transcribing with WhisperX {model_name} on {device}...", flush=True)
+    device = resolve_processing_device(processing_device, settings.whisperx_device)
+    compute_type = whisper_compute_type_for_device(device)
+    print(f"Transcribing with WhisperX {model_name} on {device} ({compute_type})...", flush=True)
     vad_options = {"model_fp": str(resolve_whisperx_vad_model())}
     asr_options = {
         "multilingual": True,
@@ -132,7 +134,7 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
         model = whisperx.load_model(
             model_name,
             device,
-            compute_type=settings.whisper_compute_type,
+            compute_type=compute_type,
             language=settings.transcription_language,
             download_root=str(settings.model_cache_dir / "whisperx"),
             asr_options=asr_options,
@@ -142,7 +144,7 @@ def transcribe_whisperx(audio_file: Path, job_dir: Path, model_name: str, progre
         model = whisperx.load_model(
             model_name,
             device,
-            compute_type=settings.whisper_compute_type,
+            compute_type=compute_type,
             download_root=str(settings.model_cache_dir / "whisperx"),
             asr_options=asr_options,
             vad_options=vad_options,

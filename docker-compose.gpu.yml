@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PROCESSING_DEVICE_DEFAULT: ${PROCESSING_DEVICE_DEFAULT:-cuda}
+      WHISPERX_DEVICE: ${WHISPERX_DEVICE:-cuda}
+      PYANNOTE_DEVICE: ${PYANNOTE_DEVICE:-cuda}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-float16}
+      WHISPER_CPU_COMPUTE_TYPE: ${WHISPER_CPU_COMPUTE_TYPE:-int8}

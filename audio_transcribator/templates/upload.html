@@ -29,6 +29,19 @@
           <input name="enable_summary" type="checkbox" value="1">
           <span>Сделать резюме</span>
         </label>
+        <fieldset class="device-field">
+          <legend>Устройство обработки</legend>
+          <div class="segmented-control">
+            <label>
+              <input name="processing_device" type="radio" value="cuda" {% if processing_device == "cuda" %}checked{% endif %}>
+              <span>GPU</span>
+            </label>
+            <label>
+              <input name="processing_device" type="radio" value="cpu" {% if processing_device == "cpu" %}checked{% endif %}>
+              <span>CPU</span>
+            </label>
+          </div>
+        </fieldset>
         <label class="speaker-count-field">
           Количество говорящих для диаризации
           <input name="diarization_speakers" type="number" min="0" step="1" value="{{ diarization_speakers or '' }}" placeholder="Авто">

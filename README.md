@@ -40,6 +40,20 @@ sudo docker-compose down
 sudo docker-compose logs -f api
 ```
 
+Для NVIDIA GPU используйте дополнительный compose-файл:
+
+```bash
+sudo docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+GPU-сборка пробрасывает `gpus: all` и по умолчанию выбирает GPU в UI. Перед запуском обработки в форме можно переключить конкретную задачу на `GPU` или `CPU`. API также принимает `processing_device=cpu|cuda`.
+
+Проверка CUDA внутри контейнера:
+
+```bash
+sudo docker compose -f docker-compose.yml -f docker-compose.gpu.yml run --rm api python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+```
+
 Веб-интерфейс:
 
 ```text
@@ -84,9 +98,11 @@ Ollama, модель из SUMMARY_MODEL
 Пример настроек `.env` для моделей внутри Docker:
 
 ```env
+PROCESSING_DEVICE_DEFAULT=auto
 WHISPERX_MODEL=large-v3
 WHISPERX_DEVICE=auto
 WHISPER_COMPUTE_TYPE=int8
+WHISPER_CPU_COMPUTE_TYPE=int8
 WHISPER_LOCAL_FILES_ONLY=true
 
 ENABLE_DIARIZATION=true

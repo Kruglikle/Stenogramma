@@ -292,6 +292,60 @@ label {
   max-width: 220px;
 }
 
+.device-field {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.device-field legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 110px));
+  width: max-content;
+  overflow: hidden;
+  background: #fbfffb;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.segmented-control label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.segmented-control input {
+  position: absolute;
+  width: 1px;
+  min-height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-control span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 16px;
+}
+
+.segmented-control input:checked + span {
+  color: #ffffff;
+  background: var(--accent);
+}
+
 .upload-progress {
   display: grid;
   gap: 8px;

@@ -74,6 +74,7 @@ def save_job_metadata(
     enable_summary: bool | None = None,
     enable_diarization: bool | None = None,
     diarization_speakers: int | None = None,
+    processing_device: str | None = None,
 ) -> None:
     """Сохранить metadata.json в прежнем публичном формате."""
     existing_metadata = load_job_metadata(job_dir)
@@ -100,6 +101,9 @@ def save_job_metadata(
         "diarization_speakers": diarization_speakers
         if diarization_speakers is not None
         else existing_metadata.get("diarization_speakers", 0),
+        "processing_device": processing_device
+        if processing_device is not None
+        else existing_metadata.get("processing_device", "auto"),
         "timings": existing_metadata.get("timings", {}),
         "files": sorted(p.name for p in job_dir.iterdir() if p.is_file()),
     }
