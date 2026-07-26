@@ -29,10 +29,12 @@
           <input name="enable_summary" type="checkbox" value="1">
           <span>Сделать резюме</span>
         </label>
+        {% if is_admin_cabinet %}
         <label class="speaker-count-field">
           Количество говорящих для диаризации
           <input name="diarization_speakers" type="number" min="0" step="1" value="{{ diarization_speakers or '' }}" placeholder="Авто">
         </label>
+        {% endif %}
         <div class="upload-progress" data-upload-progress hidden>
           <div class="upload-progress-header">
             <span data-upload-progress-label>Загрузка файла...</span>

@@ -75,8 +75,20 @@ def build_cabinet_context(username: str) -> dict:
     return {
         "cabinet_jobs": list_user_jobs(username),
         "current_username": username,
+        "is_admin_cabinet": is_admin_cabinet(username),
         "storage_quota": user_storage_quota(username),
     }
+
+
+def is_admin_cabinet(username: str) -> bool:
+    return username.strip() == settings.api_username
+
+
+def require_admin_cabinet(ui_token: str | None, ui_user: str | None, ui_user_sig: str | None) -> str:
+    username = require_ui_auth(ui_token, ui_user, ui_user_sig)
+    if not is_admin_cabinet(username):
+        raise HTTPException(status_code=404, detail="Not found")
+    return username
 
 
 def can_access_job(username: str, job_id: str) -> bool:
@@ -202,6 +214,7 @@ def build_benchmark_context(error: str | None = None, selected_run_id: str | Non
         "log_tail": log_tail,
         "active_run_id": active_benchmark_run(),
         "benchmark_types": BENCHMARK_TYPES,
+        "is_admin_cabinet": True,
     }
 
 
@@ -292,7 +305,9 @@ def upload_file(
 ):
     username = require_ui_auth(ui_token, ui_user, ui_user_sig)
     try:
-        parsed_diarization_speakers = parse_optional_positive_int(diarization_speakers)
+        parsed_diarization_speakers = (
+            parse_optional_positive_int(diarization_speakers) if is_admin_cabinet(username) else 0
+        )
         clean_source_url = source_url.strip()
         if file and file.filename:
             result = start_uploaded_file(
@@ -340,7 +355,7 @@ def benchmark_page(
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
 ):
-    require_ui_auth(ui_token, ui_user, ui_user_sig)
+    require_admin_cabinet(ui_token, ui_user, ui_user_sig)
     return templates.TemplateResponse(request, "benchmark.html", build_benchmark_context(selected_run_id=run_id))
 
 
@@ -356,7 +371,7 @@ def start_benchmark(
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
 ):
-    require_ui_auth(ui_token, ui_user, ui_user_sig)
+    require_admin_cabinet(ui_token, ui_user, ui_user_sig)
     active_run_id = active_benchmark_run()
     if active_run_id:
         return templates.TemplateResponse(
@@ -426,7 +441,7 @@ def download_benchmark_file(
     ui_user: str | None = Cookie(default=None),
     ui_user_sig: str | None = Cookie(default=None),
 ):
-    require_ui_auth(ui_token, ui_user, ui_user_sig)
+    require_admin_cabinet(ui_token, ui_user, ui_user_sig)
 
     for benchmark_type, config in BENCHMARK_TYPES.items():
         if filename not in config["downloads"]:
