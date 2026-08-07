@@ -22,48 +22,23 @@
 
 ## Быстрый запуск
 
-Для Docker-запуска нужен Linux-хост с NVIDIA GPU, установленным NVIDIA-драйвером,
-Docker Engine, Docker Compose v2 и NVIDIA Container Toolkit. Образ использует
-PyTorch 2.7.1, CUDA 12.8, cuDNN 9 и CTranslate2 4.6.3, поэтому поддерживает
-Blackwell-видеокарты, включая GeForce RTX 5070 Ti (`sm_120`). Для CUDA 12.8
-нужен драйвер NVIDIA не ниже 570.26. Сначала убедитесь, что хост видит
-видеокарту и актуальный драйвер:
+Создайте `.env` на основе `.env.example`, затем запустите сервис:
 
 ```bash
-nvidia-smi
-```
-
-Создайте `.env` на основе `.env.example`, затем запустите весь стек одной командой:
-
-```bash
-cp .env.example .env
-docker compose up -d --build
+sudo docker-compose up -d --build
 ```
 
 Остановить сервис:
 
 ```bash
-docker compose down
+sudo docker-compose down
 ```
 
 Посмотреть логи:
 
 ```bash
-docker compose logs -f api
+sudo docker-compose logs -f api
 ```
-
-При старте API проверяет доступность GPU одновременно через PyTorch и
-CTranslate2. Если NVIDIA GPU не проброшен в контейнер, сервис завершится с
-понятной ошибкой вместо незаметного перехода на CPU. В логах успешного запуска
-будет строка `GPU ready: ...`.
-
-По умолчанию одновременно обрабатывается одна задача, чтобы две копии
-`large-v3` не переполнили 16 ГБ видеопамяти RTX 5070 Ti. При необходимости это
-можно изменить через `MAX_CONCURRENT_JOBS`.
-
-> Docker Desktop на macOS не передает Apple GPU в Linux-контейнеры. Эта
-> конфигурация рассчитана на NVIDIA GPU на Linux. Ollama запускается вне этого
-> Compose-стека и использует GPU согласно собственной конфигурации.
 
 Веб-интерфейс:
 
@@ -110,8 +85,8 @@ Ollama, модель из SUMMARY_MODEL
 
 ```env
 WHISPERX_MODEL=large-v3
-WHISPERX_DEVICE=cuda
-WHISPER_COMPUTE_TYPE=float16
+WHISPERX_DEVICE=auto
+WHISPER_COMPUTE_TYPE=int8
 WHISPER_LOCAL_FILES_ONLY=true
 
 ENABLE_DIARIZATION=true
@@ -119,7 +94,7 @@ PYANNOTE_MODEL_DIR=/app/data/model_cache/pyannote
 PYANNOTE_PIPELINE_CONFIG=/app/data/model_cache/pyannote/speaker-diarization-3.1/config.yaml
 PYANNOTE_SEGMENTATION_MODEL=/app/data/model_cache/pyannote/segmentation-3.0
 PYANNOTE_EMBEDDING_MODEL=/app/data/model_cache/pyannote/hbredin-wespeaker-voxceleb-resnet34-LM
-PYANNOTE_DEVICE=cuda
+PYANNOTE_DEVICE=auto
 
 OLLAMA_BASE_URL=http://host.docker.internal:11434
 SUMMARY_MODEL=qwen3:8b

@@ -7,9 +7,8 @@ psycopg[binary]
 datasets
 jiwer
 numpy<2
-torch==2.7.1
-torchaudio==2.7.1
-ctranslate2==4.6.3
+torch==2.1.2
+torchaudio==2.1.2
 faster-whisper==1.2.1
 whisperx==3.1.1
 transformers==4.39.3
